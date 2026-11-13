@@ -55,7 +55,7 @@
         <nav class="tabs" role="tablist" aria-label="Secciones">
           <button role="tab" data-tab="orders" aria-selected="true">Órdenes</button>
           <button role="tab" data-tab="events" aria-selected="false">Eventos y precios</button>
-          <button role="tab" data-tab="settings" aria-selected="false">Datos de pago</button>
+          <button role="tab" data-tab="settings" aria-selected="false">Contacto</button>
         </nav>
         <div class="top__r">
           <span class="top__user" data-user></span>
@@ -105,23 +105,17 @@
         <div data-event-editor hidden></div>
       </section>
 
-      <!-- DATOS DE PAGO -->
+      <!-- CONTACTO -->
       <section data-panel="settings" hidden>
         <div class="head">
           <div>
-            <p class="eyebrow">Transferencia</p>
-            <h1 class="h1">Datos de pago</h1>
+            <p class="eyebrow">Ajustes</p>
+            <h1 class="h1">Contacto</h1>
           </div>
         </div>
         <form class="card form" data-settings-form novalidate>
-          <p class="hint">Esto es lo que ve el comprador al terminar su orden.</p>
+          <p class="hint">Al terminar su orden, el comprador abre un WhatsApp a este número con su código, y tú le respondes con los datos de transferencia.</p>
           <div class="grid2">
-            <label class="field"><span>Banco</span><input class="input" name="bank_name" /></label>
-            <label class="field"><span>Tipo de cuenta</span><input class="input" name="account_type" placeholder="Cuenta corriente, Cuenta RUT…" /></label>
-            <label class="field"><span>N° de cuenta</span><input class="input" name="account_number" inputmode="numeric" /></label>
-            <label class="field"><span>Titular</span><input class="input" name="holder_name" /></label>
-            <label class="field"><span>RUT</span><input class="input" name="holder_rut" placeholder="12.345.678-9" /></label>
-            <label class="field"><span>Correo para comprobantes</span><input class="input" type="email" name="transfer_email" /></label>
             <label class="field"><span>WhatsApp (con +56)</span><input class="input" name="whatsapp" inputmode="tel" placeholder="+56912345678" /></label>
             <label class="field"><span>Instagram (sin @)</span><input class="input" name="instagram" /></label>
           </div>

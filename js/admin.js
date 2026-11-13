@@ -469,7 +469,7 @@ function bindEditor(ed) {
   });
 }
 
-// ───────────────────────── DATOS DE PAGO ─────────────────────────
+// ───────────────────────── CONTACTO ─────────────────────────
 
 async function loadSettingsForm() {
   const s = await getSettings();
@@ -484,7 +484,7 @@ $('[data-settings-form]').addEventListener('submit', async (e) => {
   btn.disabled = true;
   try {
     await saveSettings(data);
-    toast('Datos de pago guardados');
+    toast('Contacto guardado');
   } catch (ex) {
     toast(ex.message, 'error');
   } finally {

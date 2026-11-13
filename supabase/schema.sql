@@ -70,15 +70,10 @@ create table if not exists public.tickets (
 );
 create index if not exists tickets_order_idx on public.tickets(order_id);
 
--- Una sola fila con los datos de transferencia y contacto
+-- Una sola fila con el contacto. Los datos de transferencia NO van en la web:
+-- el dueño se los pasa al comprador por WhatsApp.
 create table if not exists public.settings (
   id              int primary key default 1 check (id = 1),
-  bank_name       text,
-  account_type    text,
-  account_number  text,
-  holder_name     text,
-  holder_rut      text,
-  transfer_email  text,
   whatsapp        text,
   instagram       text,
   updated_at      timestamptz not null default now()
@@ -272,7 +267,7 @@ drop policy if exists tickets_admin_all on public.tickets;
 create policy tickets_admin_all on public.tickets
   for all using (public.is_admin()) with check (public.is_admin());
 
--- settings: lectura pública (datos de transferencia), edición admin
+-- settings: lectura pública (contacto), edición admin
 drop policy if exists settings_public_read on public.settings;
 create policy settings_public_read on public.settings for select using (true);
 drop policy if exists settings_admin_write on public.settings;
@@ -309,9 +304,8 @@ create policy event_media_admin_delete on storage.objects
 -- 5. DATOS INICIALES (demo)
 -- ---------------------------------------------------------------------
 
-insert into public.settings (id, bank_name, account_type, account_number, holder_name, holder_rut, transfer_email, whatsapp, instagram)
-values (1, 'Banco Estado', 'Cuenta RUT', '12345678', 'Funekes Producciones', '12.345.678-9',
-        'entradas@funekes.cl', '+56900000000', '99funekes')
+insert into public.settings (id, whatsapp, instagram)
+values (1, '+56959897604', '99funekes')
 on conflict (id) do nothing;
 
 insert into public.events (slug, title, subtitle, format_label, starts_at, location, venue, cover_url)

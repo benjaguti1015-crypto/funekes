@@ -3,8 +3,8 @@
 Landing de Funekes (Tomé) con compra de entradas por transferencia y panel de administrador.
 HTML + CSS + JS sin build. Backend: Supabase.
 
-- `index.html`: landing y compra (elige tramo y cantidad, completa los datos de cada entrada y recibe los datos de transferencia)
-- `admin.html`: panel (órdenes pendientes/pagadas, precios, eventos, datos de pago)
+- `index.html`: landing y compra (elige tramo y cantidad, completa los datos de cada entrada y pide los datos de transferencia por WhatsApp)
+- `admin.html`: panel (órdenes pendientes/pagadas, precios, eventos, contacto)
 - `supabase/schema.sql`: tablas, RLS, RPC `create_order` y datos iniciales
 - `docs/PROMPT.md`: prompt usado para construirlo
 
@@ -28,7 +28,7 @@ Los datos se guardan solo en tu navegador.
    select id from auth.users where email = 'CORREO_DEL_ADMIN';
    ```
 5. Ve a **Project Settings → API**, copia `Project URL` y la `anon public key` y pégalas en `js/config.js`.
-6. En el admin, abre **Datos de pago** y pon los datos bancarios reales.
+6. En el admin, abre **Contacto** y revisa el WhatsApp (viene con +56 9 5989 7604).
 7. Publica la carpeta en Vercel, Netlify o GitHub Pages. Es un sitio estático.
 
 ## Cómo funciona la venta
@@ -36,8 +36,9 @@ Los datos se guardan solo en tu navegador.
 1. El comprador elige tramo y cantidad (1 a 10).
 2. Completa nombre, apellido y correo de **cada** entrada.
 3. Se crea la orden `pendiente` con un código (ej. `FNK-7Q2KX`). El precio lo calcula la base de datos, no el navegador.
-4. Transfiere y pone el código en el comentario.
-5. En el admin, el organizador marca la orden como **Pagado**.
+4. Toca **Pedir datos por WhatsApp**: se abre un chat con el dueño con el código, las entradas y el total ya escritos.
+5. El dueño le responde con los datos de transferencia y recibe el comprobante por el mismo chat.
+6. En el admin, el dueño busca el código y marca la orden como **Pagado**.
 
 ## Seguridad
 

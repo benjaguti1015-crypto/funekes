@@ -17,7 +17,7 @@ const unwrap = ({ data, error }) => {
 };
 
 // ───────────────────────── DEMO ─────────────────────────
-const KEY = 'funekes-demo-v1';
+const KEY = 'funekes-demo-v2';
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 
 function seed() {
@@ -43,11 +43,7 @@ function seed() {
     };
   };
   return {
-    settings: {
-      bank_name: 'Banco Estado', account_type: 'Cuenta RUT', account_number: '12345678',
-      holder_name: 'Funekes Producciones', holder_rut: '12.345.678-9',
-      transfer_email: 'entradas@funekes.cl', whatsapp: '+56900000000', instagram: '99funekes',
-    },
+    settings: { whatsapp: '+56959897604', instagram: '99funekes' },
     events: [
       {
         id: chao, slug: 'chao-clases-2026', title: 'Chao Clases 2026',

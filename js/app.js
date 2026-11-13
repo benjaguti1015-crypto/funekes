@@ -87,7 +87,7 @@ function renderEvent(ev) {
         <span>${icon('ticket')}${first ? 'Comprar entrada' : 'Entradas agotadas'}</span>
         ${icon('ne', 'arrow arrow--ne')}
       </button>
-      <p class="event__note">Pago por transferencia. Tu entrada queda confirmada cuando validamos el pago.</p>
+      <p class="event__note">Pago por transferencia: te enviamos los datos por WhatsApp. Tu entrada queda confirmada cuando validamos el pago.</p>
     </div>`;
 
   // selección de tramo (radios accesibles con flechas)
@@ -368,13 +368,13 @@ function step3() {
   const o = state.order;
   const s = state.settings;
   $('[data-sheet-title]').textContent = '¡Orden creada!';
-  const rows = [
-    ['Código de orden (ponlo en el comentario)', o.code, 'code'],
-    ['Banco', s.bank_name], ['Tipo de cuenta', s.account_type], ['N° de cuenta', s.account_number],
-    ['Titular', s.holder_name], ['RUT', s.holder_rut], ['Correo', s.transfer_email],
-  ].filter((r) => r[1]);
   const wa = (s.whatsapp || '').replace(/\D/g, '');
-  const msg = encodeURIComponent(`Hola Funekes! Envío comprobante de la orden ${o.code} (${o.quantity} × ${o.tier_name}, ${money(o.total)}).`);
+  const names = state.attendees.map((a) => `${a.first_name.trim()} ${a.last_name.trim()}`).join(', ');
+  const msg = encodeURIComponent(
+    `Hola Funekes! Hice la orden ${o.code}: ${o.quantity} × ${o.tier_name} para ${o.event_title} (${names}). ` +
+    `Total ${money(o.total)}. ¿Me pasan los datos para transferir?`
+  );
+  const waUrl = wa ? `https://wa.me/${wa}?text=${msg}` : null;
 
   body.innerHTML = `
     <div>
@@ -386,24 +386,24 @@ function step3() {
         </div>
       </div>
       <div class="paybox">
-        <div class="paybox__total"><span>Transfiere exactamente</span><b>${money(o.total)}</b></div>
-        ${rows.map(([k, v, kind]) => `
-          <div class="payrow ${kind === 'code' ? 'payrow--code' : ''}">
-            <div><small>${esc(k)}</small><span>${esc(v)}</span></div>
-            <button class="iconbtn copy-btn" data-copy="${esc(v)}" aria-label="Copiar ${esc(k)}">
-              ${icon('copy', 'ic-copy')}${icon('check', 'ic-check')}
-            </button>
-          </div>`).join('')}
+        <div class="paybox__total"><span>Total a transferir</span><b>${money(o.total)}</b></div>
+        <div class="payrow payrow--code">
+          <div><small>Tu código de orden</small><span>${esc(o.code)}</span></div>
+          <button class="iconbtn copy-btn" data-copy="${esc(o.code)}" aria-label="Copiar código">
+            ${icon('copy', 'ic-copy')}${icon('check', 'ic-check')}
+          </button>
+        </div>
       </div>
       <ol class="howto">
-        <li><span>Transfiere <b>${money(o.total)}</b> y escribe <b>${esc(o.code)}</b> en el comentario.</span></li>
-        <li><span>Envía el comprobante ${s.transfer_email ? `a <b>${esc(s.transfer_email)}</b>` : ''}${wa ? `${s.transfer_email ? ' o ' : ''}por WhatsApp` : ''}.</span></li>
+        <li><span>Escríbenos por <b>WhatsApp</b> con tu código. El mensaje ya va listo.</span></li>
+        <li><span>Te enviamos los <b>datos de transferencia</b>. Transfiere <b>${money(o.total)}</b> y manda el comprobante por el mismo chat.</span></li>
         <li><span>Cuando validemos el pago, tu orden pasa a <b>pagada</b> y quedas en la lista.</span></li>
       </ol>
     </div>`;
-  foot.innerHTML = `
-    ${wa ? `<a class="btn btn--quiet" href="https://wa.me/${wa}?text=${msg}" target="_blank" rel="noopener">${icon('wa')}Enviar comprobante</a>` : ''}
-    <button class="btn btn--primary" data-close-done>Listo</button>`;
+  foot.innerHTML = waUrl
+    ? `<button class="btn btn--quiet" data-close-done>Cerrar</button>
+       <a class="btn btn--primary" href="${waUrl}" target="_blank" rel="noopener">${icon('wa')}Pedir datos por WhatsApp</a>`
+    : `<button class="btn btn--primary" data-close-done>Listo</button>`;
   $$('[data-copy]', body).forEach((b) => b.addEventListener('click', () => { copy(b.dataset.copy, b); toast('Copiado'); }));
   $('[data-close-done]', foot).addEventListener('click', closeSheet);
 }
