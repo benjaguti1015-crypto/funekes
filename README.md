@@ -27,9 +27,15 @@ Los datos se guardan solo en tu navegador.
    insert into public.admins (user_id)
    select id from auth.users where email = 'CORREO_DEL_ADMIN';
    ```
-5. Ve a **Project Settings → API**, copia `Project URL` y la `anon public key` y pégalas en `js/config.js`.
-6. En el admin, abre **Contacto** y revisa el WhatsApp (viene con +56 9 5989 7604).
-7. Publica la carpeta en Vercel, Netlify o GitHub Pages. Es un sitio estático.
+5. En Vercel: **Add New → Project**, importa el repo y en **Framework Preset** elige **Other**.
+6. En **Environment Variables** agrega:
+   - `SUPABASE_URL`: Project URL (Supabase → Project Settings → API)
+   - `SUPABASE_ANON_KEY`: anon public key
+7. Presiona **Deploy**. El build (`vercel.json`) escribe esas variables en `js/config.js`.
+   Si faltan, el deploy de producción falla a propósito para que no quede en modo demo.
+8. En el admin, abre **Contacto** y revisa el WhatsApp (viene con +56 9 5989 7604).
+
+Si cambias las variables después, haz **Redeploy** para que se apliquen.
 
 ## Cómo funciona la venta
 
