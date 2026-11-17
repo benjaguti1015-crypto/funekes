@@ -1,13 +1,15 @@
 // Capa de datos: Supabase si hay credenciales, si no MODO DEMO (localStorage).
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { loadScript } from './util.js';
 
 export const DEMO = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
+// La librería de Supabase va dentro del proyecto (js/vendor), no en un CDN externo:
+// así nadie fuera de este sitio puede cambiar el código que maneja la sesión del admin.
 let sb = null;
-async function client() {
-  if (sb) return sb;
-  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
-  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function client() {
+  sb ||= loadScript(new URL('./vendor/supabase.js', import.meta.url).href)
+    .then(() => window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
   return sb;
 }
 const unwrap = ({ data, error }) => {
@@ -36,6 +38,7 @@ function seed() {
       buyer_name: `${who[0][0]} ${who[0][1]}`,
       quantity: who.length, unit_price: tier.price, total: tier.price * who.length,
       status, created_at: created, paid_at: status === 'pagado' ? created : null,
+      expires_at: new Date(new Date(created).getTime() + TTL).toISOString(),
       tickets: who.map((p) => ({ id: uid(), first_name: p[0], last_name: p[1], qr_code: genCode(), checked_in_at: null })),
     };
   };
@@ -85,8 +88,23 @@ function genCode() {
   const c = Array.from(b, (x) => CODE_ALPHA[x % 32]).join('');
   return `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8)}`;
 }
+// Una orden pendiente reserva cupo 24 horas; después vence sola (igual que en la base).
+const TTL = 24 * 3600e3;
+const EXPIRED_NOTE = 'Venció: pasaron 24 horas sin pago';
+const demoLive = (o) => o.status === 'pagado' || (o.status === 'pendiente' && (!o.expires_at || new Date(o.expires_at) > Date.now()));
+function demoExpire(s) {
+  let n = 0;
+  for (const o of s.orders) {
+    if (o.status === 'pendiente' && o.expires_at && new Date(o.expires_at) <= Date.now()) {
+      o.status = 'cancelado';
+      o.notes = EXPIRED_NOTE;
+      n++;
+    }
+  }
+  if (n) save(s);
+}
 const demoSold = (s, tierId) =>
-  s.orders.filter((o) => o.tier_id === tierId && o.status !== 'cancelado').reduce((n, o) => n + o.quantity, 0);
+  s.orders.filter((o) => o.tier_id === tierId && demoLive(o)).reduce((n, o) => n + o.quantity, 0);
 const demoSoldOut = (s, t) => !!t.capacity && demoSold(s, t.id) >= t.capacity;
 
 // ───────────────────────── API PÚBLICA ─────────────────────────
@@ -136,6 +154,7 @@ export async function createOrder(tierId, attendees, accepted = false) {
   if (DEMO) {
     await wait(600);
     const s = load();
+    demoExpire(s);
     const tier = s.tiers.find((t) => t.id === tierId);
     if (!tier || !tier.is_active) throw new Error('Este tramo de entradas no está disponible');
     if (tier.door_only) throw new Error(`${tier.name} se vende solo en la entrada del evento, en efectivo`);
@@ -165,7 +184,8 @@ export async function createOrder(tierId, attendees, accepted = false) {
       id: uid(), code, event_id: ev.id, tier_id: tier.id, tier_name: tier.name,
       buyer_name: `${clean[0].first_name} ${clean[0].last_name}`,
       quantity: clean.length, unit_price: tier.price, total: tier.price * clean.length,
-      status: 'pendiente', created_at: new Date().toISOString(), paid_at: null, terms_accepted_at: new Date().toISOString(), tickets: clean,
+      status: 'pendiente', created_at: new Date().toISOString(), paid_at: null, terms_accepted_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + TTL).toISOString(), tickets: clean,
     });
     save(s);
     return { code, event_title: ev.title, tier_name: tier.name, quantity: clean.length, unit_price: tier.price, total: tier.price * clean.length };
@@ -321,9 +341,13 @@ export async function signOut() {
 export async function listOrders() {
   if (DEMO) {
     await wait(200);
-    return [...load().orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const s = load();
+    demoExpire(s);
+    return [...s.orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }
   const c = await client();
+  // cancela las pendientes vencidas antes de listar (si la base aún no tiene la función, se ignora)
+  await c.rpc('expire_pending_orders').then(() => {}, () => {});
   return unwrap(await c.from('orders').select('*, tickets(*)').order('created_at', { ascending: false }));
 }
 
@@ -331,6 +355,11 @@ export async function setOrderStatus(id, status) {
   if (DEMO) {
     const s = load();
     const o = s.orders.find((x) => x.id === id);
+    if (status === 'pendiente' && o.status !== 'pendiente') {
+      // reactivar da un plazo nuevo de 24 horas
+      o.expires_at = new Date(Date.now() + TTL).toISOString();
+      if (o.notes === EXPIRED_NOTE) o.notes = null;
+    }
     o.status = status;
     o.paid_at = status === 'pagado' ? new Date().toISOString() : null;
     save(s);

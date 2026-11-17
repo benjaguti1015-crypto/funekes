@@ -8,7 +8,8 @@ HTML + CSS + JS sin build. Backend: Supabase.
 - `puerta.html`: escáner de QR para el guardia en la entrada (cuenta propia, solo valida entradas)
 - `terminos.html` y `privacidad.html`: términos y condiciones y política de privacidad
 - `supabase/schema.sql`: tablas, RLS, funciones (`create_order`, `check_in`, `transfer_ticket`) y datos iniciales
-- `js/vendor/`: librerías incluidas en el repo (generar QR, crear PDF y leer QR con la cámara), todas con licencia MIT
+- `supabase/actualizacion.sql`: actualización corta para una base que ya tiene `schema.sql` (aceptación de términos, vencimiento a 24 horas, largo máximo de nombres)
+- `js/vendor/`: librerías incluidas en el repo (Supabase, generar QR, crear PDF y leer QR con la cámara), todas con licencia MIT
 - `docs/PROMPT.md`: prompt usado para construirlo
 
 ## Probar ya (modo demo)
@@ -54,6 +55,7 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 1. El comprador ve los tramos. Solo se vende uno a la vez y en preventa es 1 entrada por persona. "Puerta" se muestra con su precio pero no se vende en la web: es efectivo en la entrada.
 2. Completa nombre y apellido de **cada** entrada y marca la casilla de aceptación de términos, privacidad y mayoría de edad (es obligatoria).
 3. Se crea la orden `pendiente` con un código (ej. `FNK-7Q2KX`). El precio lo calcula la base de datos, no el navegador.
+   La orden reserva el cupo **24 horas**. Si no se paga, se cancela sola y el cupo queda libre (se revisa en cada compra y cada vez que abres el admin). Si alguien paga tarde, en el admin puedes **Reactivar** la orden: vuelve a pendiente con 24 horas nuevas.
 4. Toca **Pedir datos por WhatsApp**: se abre un chat con el dueño con el código, las entradas y el total ya escritos.
 5. El dueño le responde con los datos de transferencia y recibe el comprobante por el mismo chat.
 6. En el admin, el dueño busca el código y marca la orden como **Pagado**. Desde ese momento el QR de la entrada es válido.
@@ -70,7 +72,7 @@ En el admin, cada entrada muestra si ya ingresó y a qué hora, y se puede **des
 
 ## Traspasos
 
-Las entradas no tienen devolución, pero se pueden traspasar por WhatsApp. En el admin, abre la orden y toca **Traspasar**:
+Las entradas no tienen devolución, pero se pueden traspasar por WhatsApp, **solo si lo piden desde el mismo número de teléfono con el que se pagó**. En el admin, abre la orden y toca **Traspasar**:
 escribe el nombre y apellido de quien la recibe. Se genera un QR nuevo y el anterior deja de servir, así que hay que descargar el PDF otra vez.
 
 ## Seguridad
@@ -79,6 +81,10 @@ escribe el nombre y apellido de quien la recibe. Se genera un QR nuevo y el ante
 - Las compras solo se crean con la función `create_order`, que valida el tramo, el cupo y el precio. Los tramos se venden en orden (al agotarse uno se abre el siguiente) y el cupo nunca se expone al público.
 - El QR lleva solo un código al azar de 12 caracteres, sin datos personales. Validarlo exige una cuenta de guardia o de admin.
 - El guardia no puede leer las tablas de órdenes ni de entradas: solo llama a la función `check_in`, que responde por un código a la vez.
+- Las órdenes sin pagar vencen a las 24 horas: nadie puede bloquear la venta con reservas falsas por más de un día.
+- Todas las librerías se sirven desde el propio sitio (sin CDN externos de código).
+- `vercel.json` agrega cabeceras de seguridad: CSP (solo se ejecuta código del propio sitio y solo se conecta a Supabase), no se puede meter el sitio dentro de otra página, HTTPS obligatorio, y la cámara solo para el escáner.
+- En Supabase → Authentication → Sign In / Providers conviene dejar apagado "Allow new users to sign up": las cuentas las creas tú desde el panel.
 - La `anon key` es pública por diseño. **Nunca** pongas la `service_role` key en el código.
 
 ## Imágenes
