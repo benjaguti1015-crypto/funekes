@@ -3,7 +3,7 @@ import { getSettings } from './data.js';
 
 getSettings().then((s) => {
   const wa = (s?.whatsapp || '').replace(/\D/g, '');
-  const ig = (s?.instagram || '99funekes').replace(/^@/, '');
+  const ig = (s?.instagram || '93funekes').replace(/^@/, '');
   document.querySelectorAll('[data-wa]').forEach((a) => {
     if (wa) a.href = `https://wa.me/${wa}`;
     else a.hidden = true;

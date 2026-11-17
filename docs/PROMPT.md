@@ -72,7 +72,7 @@ agregar dependencias npm.
 
 ## Cambios posteriores
 
-- Venta escalonada con cupo oculto al público; preventas de 1 entrada por persona; "Puerta" solo efectivo (no se vende en la web).
+- Venta escalonada con cupo oculto al público; preventas de 1 entrada por persona; "Puerta" se paga en la entrada con cualquier medio de pago (no se vende en la web).
 - Solo nombre y apellido por entrada.
 - Cada entrada tiene un código QR único. El admin lo ve en la orden pagada y descarga un PDF con logo, nombre y QR.
 - `puerta.html`: escáner con cuenta de guardia (solo valida entradas, un ingreso por QR).

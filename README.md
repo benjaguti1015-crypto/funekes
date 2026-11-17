@@ -54,7 +54,7 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 
 ## Cómo funciona la venta
 
-1. El comprador ve los tramos. Solo se vende uno a la vez y en preventa es 1 entrada por persona. "Puerta" se muestra con su precio pero no se vende en la web: es efectivo en la entrada.
+1. El comprador ve los tramos. Solo se vende uno a la vez y en preventa es 1 entrada por persona. "Puerta" se muestra con su precio pero no se vende en la web: se paga con cualquier medio de pago en la entrada.
 2. Completa nombre y apellido de **cada** entrada y marca la casilla de aceptación de términos, privacidad y mayoría de edad (es obligatoria).
 3. Se crea la orden `pendiente` con un código (ej. `FNK-7Q2KX`). El precio lo calcula la base de datos, no el navegador.
    La orden reserva el cupo **24 horas**. Si no se paga, se cancela sola y el cupo queda libre (se revisa en cada compra y cada vez que abres el admin). Si alguien paga tarde, en el admin puedes **Reactivar** la orden: vuelve a pendiente con 24 horas nuevas.

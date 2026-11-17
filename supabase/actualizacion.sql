@@ -99,7 +99,7 @@ begin
     raise exception 'Este tramo de entradas no está disponible';
   end if;
   if v_tier.door_only then
-    raise exception '% se vende solo en la entrada del evento, en efectivo', v_tier.name;
+    raise exception '% se vende solo en la entrada del evento', v_tier.name;
   end if;
 
   select * into v_event from public.events where id = v_tier.event_id;

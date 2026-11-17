@@ -56,7 +56,7 @@ create table if not exists public.ticket_tiers (
   price       int  not null check (price >= 0),          -- CLP
   capacity    int  check (capacity is null or capacity > 0), -- null = sin límite
   max_per_order int check (max_per_order is null or max_per_order between 1 and 10), -- null = 10
-  door_only   boolean not null default false,            -- solo en puerta (efectivo): no se vende en la web
+  door_only   boolean not null default false,            -- solo en puerta: no se vende en la web
   sort_order  int  not null default 0,
   is_active   boolean not null default true,
   created_at  timestamptz not null default now()
@@ -313,7 +313,7 @@ begin
     raise exception 'Este tramo de entradas no está disponible';
   end if;
   if v_tier.door_only then
-    raise exception '% se vende solo en la entrada del evento, en efectivo', v_tier.name;
+    raise exception '% se vende solo en la entrada del evento', v_tier.name;
   end if;
 
   select * into v_event from public.events where id = v_tier.event_id;
@@ -633,7 +633,7 @@ create policy event_media_admin_delete on storage.objects
 -- ---------------------------------------------------------------------
 
 insert into public.settings (id, whatsapp, instagram)
-values (1, '+56959897604', '99funekes')
+values (1, '+56959897604', '93funekes')
 on conflict (id) do nothing;
 
 insert into public.events (slug, title, subtitle, format_label, starts_at, location, venue, cover_url)

@@ -499,7 +499,7 @@ function renderEditor() {
               <label class="field"><span>Precio (CLP)</span><span class="money-in"><input class="input" data-tf="price" inputmode="numeric" value="${t.price ?? ''}" /></span></label>
               <label class="field"><span>Cupo</span><input class="input" data-tf="capacity" inputmode="numeric" placeholder="∞" value="${t.capacity ?? ''}" /></label>
               <label class="field"><span>Máx. por compra</span><input class="input" data-tf="max_per_order" inputmode="numeric" placeholder="10" value="${t.max_per_order ?? ''}" /></label>
-              <div class="field sw"><span>Solo puerta</span><label class="switch" title="Se vende solo en la entrada, en efectivo. No se puede comprar en la web."><input type="checkbox" data-tf="door_only" ${t.door_only ? 'checked' : ''} /><i></i></label></div>
+              <div class="field sw"><span>Solo puerta</span><label class="switch" title="Se vende solo en la entrada del evento, con cualquier medio de pago. No se puede comprar en la web."><input type="checkbox" data-tf="door_only" ${t.door_only ? 'checked' : ''} /><i></i></label></div>
               <div class="field sw"><span>A la venta</span><label class="switch" title="Abierto a la venta"><input type="checkbox" data-tf="is_active" ${t.is_active ? 'checked' : ''} /><i></i></label></div>
               <button type="button" class="iconbtn" data-del-tier="${i}" aria-label="Eliminar tramo">${icon('trash')}</button>
             </div>`).join('')}

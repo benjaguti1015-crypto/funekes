@@ -43,7 +43,7 @@ function seed() {
     };
   };
   return {
-    settings: { whatsapp: '+56959897604', instagram: '99funekes' },
+    settings: { whatsapp: '+56959897604', instagram: '93funekes' },
     events: [
       {
         id: chao, slug: 'chao-clases-2026', title: 'Chao Clases 2026',
@@ -157,7 +157,7 @@ export async function createOrder(tierId, attendees, accepted = false) {
     demoExpire(s);
     const tier = s.tiers.find((t) => t.id === tierId);
     if (!tier || !tier.is_active) throw new Error('Este tramo de entradas no está disponible');
-    if (tier.door_only) throw new Error(`${tier.name} se vende solo en la entrada del evento, en efectivo`);
+    if (tier.door_only) throw new Error(`${tier.name} se vende solo en la entrada del evento`);
     if (!accepted) throw new Error('Para comprar tienes que aceptar los Términos y condiciones y la Política de privacidad');
     if (attendees.length < 1 || attendees.length > 10) throw new Error('Puedes comprar entre 1 y 10 entradas por orden');
     if (attendees.length > (tier.max_per_order || 10)) {
