@@ -106,7 +106,7 @@ function renderEvent(ev) {
         ${icon('ne', 'arrow arrow--ne')}
       </button>
       <p class="event__note">${note}</p>
-      <p class="event__legal">Solo mayores de 18 años. Entradas sin devolución, con traspaso por WhatsApp. <a href="terminos.html">Términos</a> · <a href="privacidad.html">Privacidad</a></p>
+      <p class="event__legal">Solo mayores de 18 años. Entradas sin devolución, con traspaso por WhatsApp. <a href="terminos">Términos</a> · <a href="privacidad">Privacidad</a></p>
     </div>`;
 
   // selección de tramo (radios accesibles con flechas)
@@ -351,8 +351,8 @@ function step2() {
         <input type="checkbox" name="accept" data-accept ${state.accept ? 'checked' : ''} />
         <span class="accept__box" aria-hidden="true">${icon('check')}</span>
         <span>Soy mayor de 18 años y acepto los
-          <a href="terminos.html" target="_blank" rel="noopener">Términos y condiciones</a> (entrada sin devolución, con traspaso por WhatsApp) y la
-          <a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>.</span>
+          <a href="terminos" target="_blank" rel="noopener">Términos y condiciones</a> (entrada sin devolución, con traspaso por WhatsApp) y la
+          <a href="privacidad" target="_blank" rel="noopener">Política de privacidad</a>.</span>
       </label>
       <div data-form-error></div>
       <button type="submit" hidden></button>
