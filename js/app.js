@@ -29,11 +29,17 @@ function titleHTML(title) {
  */
 function tierState(ev, t) {
   if (t.door_only) return t.is_active ? 'puerta' : 'agotada'; // solo en la entrada, en efectivo
-  if (!t.is_active || t.sold_out) return 'agotada';
-  return ev.tiers.find((x) => x.is_active && !x.sold_out && !x.door_only) === t ? 'venta' : 'pronto';
+  if (t.sold_out) return 'agotada';
+  const sell = ev.tiers.find((x) => x.is_active && !x.sold_out && !x.door_only);
+  if (t === sell) return 'venta';
+  // un tramo cerrado por el admin: si ya se vende uno posterior quedó atrás; si no, todavía no abre
+  if (!t.is_active && sell && ev.tiers.indexOf(sell) > ev.tiers.indexOf(t)) return 'agotada';
+  return 'pronto';
 }
 const onSale = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'venta');
 const doorTier = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'puerta');
+const nextTier = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'pronto');
+const lastSoldOut = (ev) => ev.tiers.filter((t) => !t.door_only && tierState(ev, t) === 'agotada').at(-1);
 const STATE_TAG = { venta: '', agotada: ' · agotada', pronto: ' · pronto', puerta: ' · efectivo' };
 const STATE_LABEL = { venta: 'Disponible', agotada: 'Agotada', pronto: 'Próximamente', puerta: 'Solo en la entrada del evento, en efectivo' };
 
@@ -71,12 +77,17 @@ function renderEvent(ev) {
   }
   const first = onSale(ev);
   const door = doorTier(ev);
+  const next = nextTier(ev);
+  const gone = lastSoldOut(ev);
   state.tierId = first?.id ?? null;
+  const doorNote = door ? ` En puerta: ${money(door.price)}, solo efectivo.` : '';
   const note = first
-    ? `Pago por transferencia: te enviamos los datos por WhatsApp. Cuando validamos el pago te mandamos tu entrada con código QR.${door ? ` En puerta: ${money(door.price)}, solo efectivo.` : ''}`
-    : door
-      ? `Las preventas se agotaron. Quedan entradas en la puerta del evento a ${money(door.price)}, solo en efectivo.`
-      : 'Ya no quedan entradas para esta fecha.';
+    ? `Pago por transferencia: te enviamos los datos por WhatsApp. Cuando validamos el pago te mandamos tu entrada con código QR.${doorNote}`
+    : next
+      ? `${gone ? `Se agotó la ${gone.name}. ` : ''}Muy pronto abrimos la venta de la ${next.name}: atento a nuestro Instagram.${doorNote}`
+      : door
+        ? `Las preventas se agotaron. Quedan entradas en la puerta del evento a ${money(door.price)}, solo en efectivo.`
+        : 'Ya no quedan entradas para esta fecha.';
 
   box.innerHTML = `
     <div class="event__media">
@@ -102,7 +113,7 @@ function renderEvent(ev) {
           </button>`; }).join('')}
       </div>
       <button class="btn btn--primary event__buy" data-buy ${first ? '' : 'disabled'}>
-        <span>${icon('ticket')}${first ? 'Comprar entrada' : door ? 'Preventas agotadas' : 'Entradas agotadas'}</span>
+        <span>${icon('ticket')}${first ? 'Comprar entrada' : next ? `${esc(next.name)} muy pronto` : door ? 'Preventas agotadas' : 'Entradas agotadas'}</span>
         ${icon('ne', 'arrow arrow--ne')}
       </button>
       <p class="event__note">${note}</p>
@@ -422,7 +433,7 @@ async function submit() {
     if (await syncEvent()) {
       // el tramo se agotó mientras se llenaba el formulario: volver a elegir con el precio nuevo
       const now = onSale(state.event);
-      if (!now) { closeSheet(); toast('Entradas agotadas', 'error'); return; }
+      if (!now) { closeSheet(); toast(`${was} se agotó.`, 'error'); return; }
       state.step = 1;
       renderStep(-1);
       toast(`${was} se agotó. Ahora está disponible ${now.name}.`, 'error');

@@ -28,7 +28,7 @@ function seed() {
   ];
   const tiers = [
     { id: uid(), event_id: chao, name: 'Preventa 1', price: 4000, capacity: 10, max_per_order: 1, sort_order: 1, is_active: true },
-    { id: uid(), event_id: chao, name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, sort_order: 2, is_active: true },
+    { id: uid(), event_id: chao, name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, sort_order: 2, is_active: false },
     { id: uid(), event_id: chao, name: 'Puerta', price: 6000, capacity: null, max_per_order: null, door_only: true, sort_order: 3, is_active: true },
   ];
   const mk = (code, tier, who, status, hoursAgo) => {
@@ -349,6 +349,19 @@ export async function listOrders() {
   // cancela las pendientes vencidas antes de listar (si la base aún no tiene la función, se ignora)
   await c.rpc('expire_pending_orders').then(() => {}, () => {});
   return unwrap(await c.from('orders').select('*, tickets(*)').order('created_at', { ascending: false }));
+}
+
+/** Abre o cierra la venta de un tramo (el siguiente no se abre solo: lo decide el admin). */
+export async function setTierActive(tierId, active) {
+  if (DEMO) {
+    const s = load();
+    const t = s.tiers.find((x) => x.id === tierId);
+    if (t) t.is_active = !!active;
+    save(s);
+    return;
+  }
+  const c = await client();
+  unwrap(await c.from('ticket_tiers').update({ is_active: !!active }).eq('id', tierId));
 }
 
 export async function setOrderStatus(id, status) {

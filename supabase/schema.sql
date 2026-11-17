@@ -652,10 +652,11 @@ values ('halloween-funekes-2026', 'Halloween Funekes', null, 'Formato discoteca'
 on conflict (slug) do nothing;
 
 insert into public.ticket_tiers (event_id, name, price, capacity, max_per_order, door_only, sort_order, is_active)
-select e.id, t.name, t.price, t.capacity, t.max_per_order, t.door_only, t.sort_order, true
+select e.id, t.name, t.price, t.capacity, t.max_per_order, t.door_only, t.sort_order, t.is_active
 from public.events e
-cross join (values ('Preventa 1', 4000, 10, 1, false, 1), ('Preventa 2', 5000, 100, 1, false, 2), ('Puerta', 6000, null, null, true, 3))
-  as t(name, price, capacity, max_per_order, door_only, sort_order)
+-- Preventa 2 parte cerrada: el admin la abre cuando quiera (no se abre sola al agotarse la 1)
+cross join (values ('Preventa 1', 4000, 10, 1, false, 1, true), ('Preventa 2', 5000, 100, 1, false, 2, false), ('Puerta', 6000, null, null, true, 3, true))
+  as t(name, price, capacity, max_per_order, door_only, sort_order, is_active)
 where e.slug = 'chao-clases-2026'
   and not exists (select 1 from public.ticket_tiers x where x.event_id = e.id);
 
