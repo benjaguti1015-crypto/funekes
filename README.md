@@ -52,7 +52,7 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 ## Cómo funciona la venta
 
 1. El comprador ve los tramos. Solo se vende uno a la vez y en preventa es 1 entrada por persona. "Puerta" se muestra con su precio pero no se vende en la web: es efectivo en la entrada.
-2. Completa nombre y apellido de **cada** entrada.
+2. Completa nombre y apellido de **cada** entrada y marca la casilla de aceptación de términos, privacidad y mayoría de edad (es obligatoria).
 3. Se crea la orden `pendiente` con un código (ej. `FNK-7Q2KX`). El precio lo calcula la base de datos, no el navegador.
 4. Toca **Pedir datos por WhatsApp**: se abre un chat con el dueño con el código, las entradas y el total ya escritos.
 5. El dueño le responde con los datos de transferencia y recibe el comprobante por el mismo chat.
