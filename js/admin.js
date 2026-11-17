@@ -222,6 +222,8 @@ function rowHTML(o) {
             <span>Precio unitario: ${money(o.unit_price)}</span>
             ${o.paid_at ? `<span>Pagado: ${esc(dateTime(o.paid_at))}</span>` : ''}
             ${o.terms_accepted_at ? `<span>Aceptó términos y privacidad: ${esc(dateTime(o.terms_accepted_at))}</span>` : ''}
+            ${o.status === 'pendiente' && o.expires_at ? `<span>Vence si no paga: ${esc(dateTime(o.expires_at))}</span>` : ''}
+            ${o.status === 'cancelado' && o.notes ? `<span>${esc(o.notes)}</span>` : ''}
           </p>
         </div>
       </div>
@@ -294,6 +296,7 @@ $('[data-orders]').addEventListener('click', async (e) => {
     return;
   }
   const next = act.dataset.act;
+  if (next === 'pendiente' && o.status === 'cancelado') { o.expires_at = new Date(Date.now() + 24 * 3600e3).toISOString(); o.notes = null; }
   if (next === 'cancelado' && !confirm(`¿Cancelar la orden ${o.code}? Las entradas vuelven a quedar disponibles.`)) return;
   const prev = o.status;
   act.disabled = true;

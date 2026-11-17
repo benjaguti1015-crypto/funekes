@@ -47,6 +47,19 @@ export const slugify = (s) =>
 
 export const isPast = (ev) => new Date(ev.starts_at).getTime() < Date.now() - 12 * 3600 * 1000;
 
+const scripts = {};
+/** Carga un script clásico una sola vez (librerías de js/vendor). */
+export function loadScript(src) {
+  scripts[src] ||= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => { delete scripts[src]; rej(new Error('No se pudo cargar ' + src)); };
+    document.head.appendChild(s);
+  });
+  return scripts[src];
+}
+
 export async function copy(text, btn) {
   try {
     await navigator.clipboard.writeText(text);

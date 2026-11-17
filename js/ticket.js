@@ -1,19 +1,7 @@
 // Entradas: dibuja el QR de cada entrada y arma el PDF que se le manda al cliente.
 // Las librerías viven en js/vendor (no dependen de internet externo) y se cargan
 // solo cuando hacen falta.
-import { longDate } from './util.js';
-
-const loaded = {};
-function loadScript(src) {
-  loaded[src] ||= new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = res;
-    s.onerror = () => { delete loaded[src]; rej(new Error('No se pudo cargar ' + src)); };
-    document.head.appendChild(s);
-  });
-  return loaded[src];
-}
+import { longDate, loadScript } from './util.js';
 const vendor = (file) => new URL(`./vendor/${file}`, import.meta.url).href;
 
 /** Carga el generador de QR. Llamar una vez antes de usar qrSVG(). */

@@ -468,7 +468,7 @@ function step3() {
       </div>
       <ol class="howto">
         <li><span>Escríbenos por <b>WhatsApp</b> con tu código. El mensaje ya va listo.</span></li>
-        <li><span>Te enviamos los <b>datos de transferencia</b>. Transfiere <b>${money(o.total)}</b> y manda el comprobante por el mismo chat.</span></li>
+        <li><span>Te enviamos los <b>datos de transferencia</b>. Transfiere <b>${money(o.total)}</b> y manda el comprobante por el mismo chat. Tienes <b>24 horas</b>: después la reserva se cancela sola.</span></li>
         <li><span>Cuando validemos el pago te mandamos por WhatsApp tu <b>entrada en PDF con código QR</b>. Ese QR es el que se escanea en la puerta.</span></li>
       </ol>
     </div>`;

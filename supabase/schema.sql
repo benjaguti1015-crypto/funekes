@@ -121,7 +121,8 @@ create table if not exists public.orders (
   notes        text,
   created_at   timestamptz not null default now(),
   paid_at      timestamptz,
-  terms_accepted_at timestamptz             -- cuándo aceptó términos y privacidad
+  terms_accepted_at timestamptz,            -- cuándo aceptó términos y privacidad
+  expires_at   timestamptz default (now() + interval '24 hours') -- una orden pendiente reserva cupo hasta acá
 );
 create index if not exists orders_event_idx  on public.orders(event_id);
 create index if not exists orders_status_idx on public.orders(status);
@@ -147,6 +148,10 @@ create unique index if not exists tickets_qr_code_key on public.tickets(qr_code)
 
 -- Migración: registro de la aceptación de términos y privacidad
 alter table public.orders add column if not exists terms_accepted_at timestamptz;
+
+-- Migración: las órdenes pendientes vencen a las 24 horas.
+-- Las que ya existían reciben 24 horas desde este momento.
+alter table public.orders add column if not exists expires_at timestamptz default (now() + interval '24 hours');
 
 -- Migración: solo se pide nombre y apellido (instalaciones anteriores pedían correo)
 alter table public.orders  alter column buyer_email drop not null;
@@ -217,6 +222,13 @@ begin
   elsif new.status <> 'pagado' then
     new.paid_at := null;
   end if;
+  -- al reactivar una orden (vuelve a pendiente) parte un plazo nuevo de 24 horas
+  if new.status = 'pendiente' and (old.status is distinct from 'pendiente') then
+    new.expires_at := now() + interval '24 hours';
+    if new.notes like 'Venció:%' then
+      new.notes := null;
+    end if;
+  end if;
   return new;
 end;
 $$;
@@ -226,7 +238,8 @@ create trigger orders_paid_at
   before update of status on public.orders
   for each row execute function public.orders_set_paid_at();
 
--- Entradas vendidas (no canceladas) por tramo. Uso interno: el público NO puede llamarla.
+-- Entradas que ocupan cupo en un tramo: las pagadas y las pendientes que aún no vencen.
+-- Uso interno: el público NO puede llamarla.
 create or replace function public.tier_sold(p_tier_id uuid)
 returns int
 language sql stable security definer
@@ -234,7 +247,29 @@ set search_path = public
 as $$
   select coalesce(sum(quantity), 0)::int
   from public.orders
-  where tier_id = p_tier_id and status <> 'cancelado';
+  where tier_id = p_tier_id
+    and (status = 'pagado' or (status = 'pendiente' and coalesce(expires_at, 'infinity') > now()));
+$$;
+
+-- Cancela las órdenes pendientes que llevan más de 24 horas sin pago y libera su cupo.
+-- No hay tarea programada: se ejecuta sola en cada compra y cada vez que el admin abre el panel.
+create or replace function public.expire_pending_orders()
+returns int
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_n int;
+begin
+  update public.orders
+     set status = 'cancelado',
+         notes  = 'Venció: pasaron 24 horas sin pago'
+   where status = 'pendiente'
+     and expires_at is not null
+     and expires_at <= now();
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
 $$;
 
 -- Crea una orden. El precio SIEMPRE se calcula acá, nunca en el navegador.
@@ -261,6 +296,8 @@ begin
   if not coalesce(p_accepted, false) then
     raise exception 'Para comprar tienes que aceptar los Términos y condiciones y la Política de privacidad';
   end if;
+  -- libera el cupo de las reservas vencidas antes de contar
+  perform public.expire_pending_orders();
   if p_attendees is null or jsonb_typeof(p_attendees) <> 'array' then
     raise exception 'Faltan los datos de los asistentes';
   end if;
@@ -486,6 +523,8 @@ grant execute on function public.transfer_ticket(uuid, text, text) to authentica
 grant execute on function public.is_staff()                        to anon, authenticated;
 grant execute on function public.staff_role()                      to anon, authenticated;
 
+revoke all on function public.expire_pending_orders() from public, anon;
+grant execute on function public.expire_pending_orders() to authenticated;
 revoke all on function public.create_order(uuid, jsonb, boolean) from public;
 grant execute on function public.create_order(uuid, jsonb, boolean) to anon, authenticated;
 revoke all on function public.tier_sold(uuid) from public, anon, authenticated;
@@ -531,7 +570,8 @@ with (security_invoker = false) as
   select t.id, t.event_id, t.name, t.price, t.sort_order, t.is_active,
          (t.capacity is not null and coalesce((
             select sum(o.quantity) from public.orders o
-            where o.tier_id = t.id and o.status <> 'cancelado'
+            where o.tier_id = t.id
+              and (o.status = 'pagado' or (o.status = 'pendiente' and coalesce(o.expires_at, 'infinity') > now()))
           ), 0) >= t.capacity) as sold_out,
          t.max_per_order,
          t.door_only
