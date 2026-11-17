@@ -20,12 +20,12 @@ Usa la captura adjunta como fuente visual bloqueada (no reinterpretar):
 
 <cambio_clave>
 Donde la captura dice "Consultar por WhatsApp", va "Comprar entrada". Evento demo: CHAO CLASES 2026,
-sábado 12/12/2026, Tomé. Tramos: Preventa 1 $4.000 · Preventa 2 $5.000 · General $7.000.
+sábado 12/12/2026, Tomé. Tramos (venta escalonada, cupo oculto al público): Preventa 1 $4.000 (10) · Preventa 2 $5.000 (100) · Puerta $6.000.
 </cambio_clave>
 
 <flujo_compra>
 1. Elegir tramo y cantidad (1–10).
-2. Por CADA entrada: nombre, apellido y correo (N bloques de formulario según la cantidad).
+2. Por CADA entrada: nombre y apellido (N bloques de formulario según la cantidad).
 3. Confirmar → se crea la orden "pendiente" con un código corto (ej. FNK-7Q2K) y se muestran
    los datos de transferencia + total + instrucción de poner el código en el comentario.
 El precio SIEMPRE se calcula en el servidor (RPC), nunca se confía en el cliente.
@@ -69,3 +69,12 @@ agregar dependencias npm.
 ```
 
 🎯 Target: Claude Code · 💡 Bloquea la captura como referencia visual, fija el precio en el servidor y define un "listo cuando" verificable para evitar iteraciones.
+
+## Cambios posteriores
+
+- Venta escalonada con cupo oculto al público; preventas de 1 entrada por persona; "Puerta" solo efectivo (no se vende en la web).
+- Solo nombre y apellido por entrada.
+- Cada entrada tiene un código QR único. El admin lo ve en la orden pagada y descarga un PDF con logo, nombre y QR.
+- `puerta.html`: escáner con cuenta de guardia (solo valida entradas, un ingreso por QR).
+- Traspaso de entradas desde el admin (QR nuevo, el anterior se anula).
+- `terminos.html` (sin devolución, traspaso por WhatsApp) y `privacidad.html`.
