@@ -28,7 +28,7 @@ function titleHTML(title) {
  * Los anteriores quedan "agotada" y los siguientes "pronto". Nunca se muestra el cupo.
  */
 function tierState(ev, t) {
-  if (t.door_only) return t.is_active ? 'puerta' : 'agotada'; // solo en la entrada, en efectivo
+  if (t.door_only) return t.is_active ? 'puerta' : 'agotada'; // solo en la entrada del evento
   if (t.sold_out) return 'agotada';
   const sell = ev.tiers.find((x) => x.is_active && !x.sold_out && !x.door_only);
   if (t === sell) return 'venta';
@@ -40,8 +40,8 @@ const onSale = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'venta');
 const doorTier = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'puerta');
 const nextTier = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'pronto');
 const lastSoldOut = (ev) => ev.tiers.filter((t) => !t.door_only && tierState(ev, t) === 'agotada').at(-1);
-const STATE_TAG = { venta: '', agotada: ' · agotada', pronto: ' · pronto', puerta: ' · efectivo' };
-const STATE_LABEL = { venta: 'Disponible', agotada: 'Agotada', pronto: 'Próximamente', puerta: 'Solo en la entrada del evento, en efectivo' };
+const STATE_TAG = { venta: '', agotada: ' · agotada', pronto: ' · pronto', puerta: '' };
+const STATE_LABEL = { venta: 'Disponible', agotada: 'Agotada', pronto: 'Próximamente', puerta: 'Solo en la entrada del evento, con cualquier medio de pago' };
 
 // ───────────────────────── RENDER LANDING ─────────────────────────
 
@@ -80,13 +80,13 @@ function renderEvent(ev) {
   const next = nextTier(ev);
   const gone = lastSoldOut(ev);
   state.tierId = first?.id ?? null;
-  const doorNote = door ? ` En puerta: ${money(door.price)}, solo efectivo.` : '';
+  const doorNote = door ? ` En puerta: ${money(door.price)}, con cualquier medio de pago.` : '';
   const note = first
     ? `Pago por transferencia: te enviamos los datos por WhatsApp. Cuando validamos el pago te mandamos tu entrada con código QR.${doorNote}`
     : next
       ? `${gone ? `Se agotó la ${gone.name}. ` : ''}Muy pronto abrimos la venta de la ${next.name}: atento a nuestro Instagram.${doorNote}`
       : door
-        ? `Las preventas se agotaron. Quedan entradas en la puerta del evento a ${money(door.price)}, solo en efectivo.`
+        ? `Las preventas se agotaron. Quedan entradas en la puerta del evento a ${money(door.price)}, con cualquier medio de pago.`
         : 'Ya no quedan entradas para esta fecha.';
 
   box.innerHTML = `
@@ -187,7 +187,7 @@ function renderArchive(events) {
 }
 
 function renderContact(s) {
-  const ig = (s.instagram || '99funekes').replace(/^@/, '');
+  const ig = (s.instagram || '93funekes').replace(/^@/, '');
   const igA = $('[data-ig]');
   igA.href = `https://instagram.com/${ig}`;
   $('[data-ig-handle]').textContent = `@${ig}`;
