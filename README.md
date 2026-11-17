@@ -39,8 +39,8 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 
 ## Cómo funciona la venta
 
-1. El comprador elige tramo y cantidad (1 a 10).
-2. Completa nombre, apellido y correo de **cada** entrada.
+1. El comprador elige cantidad (en preventa es 1 entrada por persona; en Puerta, hasta 10).
+2. Completa nombre y apellido de **cada** entrada.
 3. Se crea la orden `pendiente` con un código (ej. `FNK-7Q2KX`). El precio lo calcula la base de datos, no el navegador.
 4. Toca **Pedir datos por WhatsApp**: se abre un chat con el dueño con el código, las entradas y el total ya escritos.
 5. El dueño le responde con los datos de transferencia y recibe el comprobante por el mismo chat.
@@ -49,7 +49,7 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 ## Seguridad
 
 - Nadie del público puede ver órdenes ni datos de otros compradores (RLS).
-- Las compras solo se crean con la función `create_order`, que valida el tramo, el cupo, los correos y el precio.
+- Las compras solo se crean con la función `create_order`, que valida el tramo, el cupo y el precio. Los tramos se venden en orden (al agotarse uno se abre el siguiente) y el cupo nunca se expone al público.
 - La `anon key` es pública por diseño. **Nunca** pongas la `service_role` key en el código.
 
 ## Imágenes

@@ -34,11 +34,26 @@ create table if not exists public.ticket_tiers (
   name        text not null,
   price       int  not null check (price >= 0),          -- CLP
   capacity    int  check (capacity is null or capacity > 0), -- null = sin límite
+  max_per_order int check (max_per_order is null or max_per_order between 1 and 10), -- null = 10
   sort_order  int  not null default 0,
   is_active   boolean not null default true,
   created_at  timestamptz not null default now()
 );
 create index if not exists ticket_tiers_event_idx on public.ticket_tiers(event_id);
+
+-- Migración: máximo de entradas por compra. Al agregarla por primera vez deja
+-- las preventas en 1 por persona; después manda lo que diga el panel.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'ticket_tiers' and column_name = 'max_per_order'
+  ) then
+    alter table public.ticket_tiers
+      add column max_per_order int check (max_per_order is null or max_per_order between 1 and 10);
+    update public.ticket_tiers set max_per_order = 1 where name ilike 'preventa%';
+  end if;
+end $$;
 
 create table if not exists public.orders (
   id           uuid primary key default gen_random_uuid(),
@@ -47,7 +62,7 @@ create table if not exists public.orders (
   tier_id      uuid not null references public.ticket_tiers(id) on delete restrict,
   tier_name    text not null,              -- copia histórica
   buyer_name   text not null,
-  buyer_email  text not null,
+  buyer_email  text,                       -- ya no se pide (columna histórica)
   quantity     int  not null check (quantity between 1 and 10),
   unit_price   int  not null,
   total        int  not null,
@@ -65,10 +80,14 @@ create table if not exists public.tickets (
   order_id    uuid not null references public.orders(id) on delete cascade,
   first_name  text not null,
   last_name   text not null,
-  email       text not null,
+  email       text,                        -- ya no se pide (columna histórica)
   created_at  timestamptz not null default now()
 );
 create index if not exists tickets_order_idx on public.tickets(order_id);
+
+-- Migración: solo se pide nombre y apellido (instalaciones anteriores pedían correo)
+alter table public.orders  alter column buyer_email drop not null;
+alter table public.tickets alter column email       drop not null;
 
 -- Una sola fila con el contacto. Los datos de transferencia NO van en la web:
 -- el dueño se los pasa al comprador por WhatsApp.
@@ -116,7 +135,7 @@ create trigger orders_paid_at
   before update of status on public.orders
   for each row execute function public.orders_set_paid_at();
 
--- Entradas vendidas (no canceladas) por tramo, visible para el público
+-- Entradas vendidas (no canceladas) por tramo. Uso interno: el público NO puede llamarla.
 create or replace function public.tier_sold(p_tier_id uuid)
 returns int
 language sql stable security definer
@@ -128,7 +147,8 @@ as $$
 $$;
 
 -- Crea una orden. El precio SIEMPRE se calcula acá, nunca en el navegador.
--- p_attendees: [{"first_name":"...","last_name":"...","email":"..."}, ...]
+-- Venta escalonada: solo se vende el primer tramo activo con cupo disponible.
+-- p_attendees: [{"first_name":"...","last_name":"..."}, ...]
 create or replace function public.create_order(p_tier_id uuid, p_attendees jsonb)
 returns jsonb
 language plpgsql security definer
@@ -165,10 +185,31 @@ begin
     raise exception 'La venta para este evento está cerrada';
   end if;
 
+  if v_qty > coalesce(v_tier.max_per_order, 10) then
+    if v_tier.max_per_order = 1 then
+      raise exception '% es 1 entrada por persona', v_tier.name;
+    end if;
+    raise exception 'En % puedes comprar hasta % entradas por orden', v_tier.name, v_tier.max_per_order;
+  end if;
+
+  -- venta escalonada: un tramo se abre recién cuando se agotan los anteriores
+  if exists (
+    select 1 from public.ticket_tiers p
+    where p.event_id = v_tier.event_id
+      and p.is_active
+      and p.sort_order < v_tier.sort_order
+      and (p.capacity is null or public.tier_sold(p.id) < p.capacity)
+  ) then
+    raise exception '% todavía no está a la venta', v_tier.name;
+  end if;
+
+  -- el mensaje nunca revela cuántas entradas quedan
   if v_tier.capacity is not null then
     v_sold := public.tier_sold(v_tier.id);
-    if v_sold + v_qty > v_tier.capacity then
-      raise exception 'Quedan % entradas en %', greatest(v_tier.capacity - v_sold, 0), v_tier.name;
+    if v_sold >= v_tier.capacity then
+      raise exception '% se agotó', v_tier.name;
+    elsif v_sold + v_qty > v_tier.capacity then
+      raise exception 'No quedan suficientes entradas en % para esa cantidad. Prueba con menos.', v_tier.name;
     end if;
   end if;
 
@@ -176,9 +217,6 @@ begin
     if coalesce(trim(v_a->>'first_name'), '') = ''
        or coalesce(trim(v_a->>'last_name'), '') = '' then
       raise exception 'Cada entrada necesita nombre y apellido';
-    end if;
-    if coalesce(v_a->>'email', '') !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
-      raise exception 'Correo inválido: %', coalesce(v_a->>'email', '(vacío)');
     end if;
   end loop;
 
@@ -192,16 +230,15 @@ begin
   end loop;
 
   insert into public.orders
-    (code, event_id, tier_id, tier_name, buyer_name, buyer_email, quantity, unit_price, total)
+    (code, event_id, tier_id, tier_name, buyer_name, quantity, unit_price, total)
   values
     (v_code, v_event.id, v_tier.id, v_tier.name,
      trim(p_attendees->0->>'first_name') || ' ' || trim(p_attendees->0->>'last_name'),
-     lower(trim(p_attendees->0->>'email')),
      v_qty, v_tier.price, v_tier.price * v_qty)
   returning id into v_order;
 
-  insert into public.tickets (order_id, first_name, last_name, email)
-  select v_order, trim(a->>'first_name'), trim(a->>'last_name'), lower(trim(a->>'email'))
+  insert into public.tickets (order_id, first_name, last_name)
+  select v_order, trim(a->>'first_name'), trim(a->>'last_name')
   from jsonb_array_elements(p_attendees) a;
 
   return jsonb_build_object(
@@ -217,7 +254,7 @@ $$;
 
 revoke all on function public.create_order(uuid, jsonb) from public;
 grant execute on function public.create_order(uuid, jsonb) to anon, authenticated;
-grant execute on function public.tier_sold(uuid)            to anon, authenticated;
+revoke all on function public.tier_sold(uuid) from public, anon, authenticated;
 grant execute on function public.is_admin()                 to anon, authenticated;
 
 -- ---------------------------------------------------------------------
@@ -247,17 +284,25 @@ drop policy if exists events_admin_all on public.events;
 create policy events_admin_all on public.events
   for all using (public.is_admin()) with check (public.is_admin());
 
--- ticket_tiers
+-- ticket_tiers: solo admins. La tabla tiene el cupo, que el público no debe ver;
+-- la web lee la vista tiers_public (sin cupo ni vendidas, solo "agotado sí/no").
 drop policy if exists tiers_public_read on public.ticket_tiers;
-create policy tiers_public_read on public.ticket_tiers
-  for select using (
-    public.is_admin() or exists (
-      select 1 from public.events e where e.id = event_id and e.is_published
-    )
-  );
 drop policy if exists tiers_admin_all on public.ticket_tiers;
 create policy tiers_admin_all on public.ticket_tiers
   for all using (public.is_admin()) with check (public.is_admin());
+
+create or replace view public.tiers_public
+with (security_invoker = false) as
+  select t.id, t.event_id, t.name, t.price, t.sort_order, t.is_active,
+         (t.capacity is not null and coalesce((
+            select sum(o.quantity) from public.orders o
+            where o.tier_id = t.id and o.status <> 'cancelado'
+          ), 0) >= t.capacity) as sold_out,
+         t.max_per_order
+  from public.ticket_tiers t
+  join public.events e on e.id = t.event_id
+  where e.is_published;
+grant select on public.tiers_public to anon, authenticated;
 
 -- orders / tickets: solo admins (el público crea vía create_order)
 drop policy if exists orders_admin_all on public.orders;
@@ -323,13 +368,29 @@ values ('halloween-funekes-2026', 'Halloween Funekes', null, 'Formato discoteca'
         'Disfraces, reggaetón y una pista llena. Gracias a todos los que llenaron el Círculo Naval.')
 on conflict (slug) do nothing;
 
-insert into public.ticket_tiers (event_id, name, price, sort_order, is_active)
-select e.id, t.name, t.price, t.sort_order, true
+insert into public.ticket_tiers (event_id, name, price, capacity, max_per_order, sort_order, is_active)
+select e.id, t.name, t.price, t.capacity, t.max_per_order, t.sort_order, true
 from public.events e
-cross join (values ('Preventa 1', 4000, 1), ('Preventa 2', 5000, 2), ('General', 7000, 3))
-  as t(name, price, sort_order)
+cross join (values ('Preventa 1', 4000, 10, 1, 1), ('Preventa 2', 5000, 100, 1, 2), ('Puerta', 6000, null, null, 3))
+  as t(name, price, capacity, max_per_order, sort_order)
 where e.slug = 'chao-clases-2026'
   and not exists (select 1 from public.ticket_tiers x where x.event_id = e.id);
+
+-- Migración de tramos para instalaciones anteriores (Preventa 1/2 sin cupo y
+-- "General $7.000"). Solo toca los valores originales: si ya los editaste en el
+-- panel, no los pisa.
+update public.ticket_tiers t set capacity = 10
+from public.events e
+where e.id = t.event_id and e.slug = 'chao-clases-2026'
+  and t.name = 'Preventa 1' and t.capacity is null;
+update public.ticket_tiers t set capacity = 100
+from public.events e
+where e.id = t.event_id and e.slug = 'chao-clases-2026'
+  and t.name = 'Preventa 2' and t.capacity is null;
+update public.ticket_tiers t set name = 'Puerta', price = 6000
+from public.events e
+where e.id = t.event_id and e.slug = 'chao-clases-2026'
+  and t.name = 'General' and t.price = 7000;
 
 -- ---------------------------------------------------------------------
 -- 6. CREAR EL ADMIN (correr aparte, después de crear el usuario en

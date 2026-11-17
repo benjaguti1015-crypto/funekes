@@ -1,5 +1,5 @@
 import { DEMO, getEvents, getSettings, createOrder } from './data.js';
-import { money, longDate, shortDate, stampDate, esc, isEmail, isPast, copy, toast } from './util.js';
+import { money, longDate, shortDate, stampDate, esc, isPast, copy, toast } from './util.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -22,8 +22,17 @@ function titleHTML(title) {
   return m ? `${esc(m[1])}<span class="accent">${esc(m[2])}</span>` : esc(title);
 }
 
-const activeTiers = (ev) => ev.tiers.filter((t) => t.is_active);
-const cheapestActive = (ev) => activeTiers(ev).sort((a, b) => a.price - b.price)[0];
+/**
+ * Venta escalonada: solo se vende el primer tramo activo que no esté agotado.
+ * Los anteriores quedan "agotada" y los siguientes "pronto". Nunca se muestra el cupo.
+ */
+function tierState(ev, t) {
+  if (!t.is_active || t.sold_out) return 'agotada';
+  return ev.tiers.find((x) => x.is_active && !x.sold_out) === t ? 'venta' : 'pronto';
+}
+const onSale = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'venta');
+const STATE_TAG = { venta: '', agotada: ' · agotada', pronto: ' · pronto' };
+const STATE_LABEL = { venta: 'Disponible', agotada: 'Agotada', pronto: 'Próximamente' };
 
 // ───────────────────────── RENDER LANDING ─────────────────────────
 
@@ -57,7 +66,7 @@ function renderEvent(ev) {
     box.innerHTML = 'Pronto anunciamos la próxima fecha. Síguenos en Instagram para enterarte primero.';
     return;
   }
-  const first = cheapestActive(ev);
+  const first = onSale(ev);
   state.tierId = first?.id ?? null;
 
   box.innerHTML = `
@@ -75,13 +84,13 @@ function renderEvent(ev) {
       </ul>
       <p class="event__tlabel">Entradas</p>
       <div class="tiers" role="radiogroup" aria-label="Tramo de entrada" style="--n:${ev.tiers.length || 1}">
-        ${ev.tiers.map((t) => `
-          <button class="tier" role="radio" data-tier="${t.id}"
-            aria-checked="${t.id === state.tierId}" ${t.is_active ? '' : 'aria-disabled="true"'}
+        ${ev.tiers.map((t) => { const st = tierState(ev, t); return `
+          <button class="tier" role="radio" data-tier="${t.id}" data-state="${st}"
+            aria-checked="${t.id === state.tierId}" ${st === 'venta' ? '' : 'aria-disabled="true"'}
             ${t.id === state.tierId ? 'tabindex="0"' : 'tabindex="-1"'}>
-            <small>${esc(t.name)}${t.is_active ? '' : ' · agotada'}</small>
+            <small>${esc(t.name)}${STATE_TAG[st]}</small>
             <b>${money(t.price)}</b>
-          </button>`).join('')}
+          </button>`; }).join('')}
       </div>
       <button class="btn btn--primary event__buy" data-buy ${first ? '' : 'disabled'}>
         <span>${icon('ticket')}${first ? 'Comprar entrada' : 'Entradas agotadas'}</span>
@@ -195,8 +204,8 @@ let lastFocus = null;
 
 function openSheet() {
   const ev = state.event;
-  if (!ev || !cheapestActive(ev)) return;
-  if (!ev.tiers.find((t) => t.id === state.tierId && t.is_active)) state.tierId = cheapestActive(ev).id;
+  if (!ev || !onSale(ev)) return;
+  state.tierId = onSale(ev).id;
   state.step = 1;
   state.order = null;
   lastFocus = document.activeElement;
@@ -224,6 +233,21 @@ function closeSheet() {
   if (state.order) { state.attendees = []; state.qty = 1; }
 }
 
+/**
+ * Vuelve a leer el evento (un tramo pudo agotarse mientras tanto).
+ * Devuelve true si cambió el tramo en venta.
+ */
+async function syncEvent() {
+  const prev = state.tierId;
+  try {
+    const ev = (await getEvents()).find((e) => e.id === state.event.id);
+    if (!ev) return false;
+    state.event = ev;
+    renderEvent(ev); // deja state.tierId en el tramo en venta
+  } catch { return false; }
+  return state.tierId !== prev;
+}
+
 function setSteps() {
   $$('[data-step-dot]').forEach((li) => {
     const n = +li.dataset.stepDot;
@@ -233,6 +257,8 @@ function setSteps() {
 }
 
 function tier() { return state.event.tiers.find((t) => t.id === state.tierId); }
+/** tope de entradas por compra del tramo en venta (las preventas son 1 por persona) */
+const maxQty = () => Math.min(10, tier()?.max_per_order || 10);
 
 function renderStep(dir = 1) {
   body.style.setProperty('--dir', `${dir * 12}px`);
@@ -245,19 +271,21 @@ function renderStep(dir = 1) {
 
 function step1() {
   const ev = state.event;
-  $('[data-sheet-title]').textContent = 'Elige tus entradas';
+  const max = maxQty();
+  state.qty = Math.min(state.qty, max);
+  $('[data-sheet-title]').textContent = max === 1 ? 'Tu entrada' : 'Elige tus entradas';
   body.innerHTML = `
     <div>
       <div class="opt-list" role="radiogroup" aria-label="Tramo">
-        ${ev.tiers.map((t) => `
-          <button class="opt" role="radio" data-opt="${t.id}" aria-checked="${t.id === state.tierId}" ${t.is_active ? '' : 'aria-disabled="true"'}>
+        ${ev.tiers.map((t) => { const st = tierState(ev, t); return `
+          <button class="opt" role="radio" data-opt="${t.id}" aria-checked="${t.id === state.tierId}" ${st === 'venta' ? '' : 'aria-disabled="true"'}>
             <span class="opt__radio"></span>
-            <span><b>${esc(t.name)}</b><small>${t.is_active ? 'Disponible' : 'Agotada'}</small></span>
+            <span><b>${esc(t.name)}</b><small>${STATE_LABEL[st]}</small></span>
             <span class="opt__price">${money(t.price)}</span>
-          </button>`).join('')}
+          </button>`; }).join('')}
       </div>
       <div class="qty">
-        <div class="qty__label"><b>Cantidad</b><small>Máximo 10 por compra</small></div>
+        <div class="qty__label"><b>Cantidad</b><small>${max === 1 ? '1 entrada por persona en este tramo' : `Máximo ${max} por compra`}</small></div>
         <div class="stepper">
           <button data-dec aria-label="Quitar una entrada">${icon('minus')}</button>
           <output aria-live="polite" data-qty>${state.qty}</output>
@@ -272,7 +300,7 @@ function step1() {
     $('[data-qty]', body).textContent = state.qty;
     $('[data-total]', body).textContent = money(tier().price * state.qty);
     $('[data-dec]', body).disabled = state.qty <= 1;
-    $('[data-inc]', body).disabled = state.qty >= 10;
+    $('[data-inc]', body).disabled = state.qty >= max;
   };
   $$('[data-opt]', body).forEach((b) => b.addEventListener('click', () => {
     if (b.getAttribute('aria-disabled') === 'true') return;
@@ -283,7 +311,7 @@ function step1() {
     sync();
   }));
   $('[data-dec]', body).addEventListener('click', () => { state.qty = Math.max(1, state.qty - 1); sync(); });
-  $('[data-inc]', body).addEventListener('click', () => { state.qty = Math.min(10, state.qty + 1); sync(); });
+  $('[data-inc]', body).addEventListener('click', () => { state.qty = Math.min(max, state.qty + 1); sync(); });
   $('[data-next]', foot).addEventListener('click', () => { state.step = 2; renderStep(1); });
   sync();
 }
@@ -292,11 +320,11 @@ function step2() {
   const t = tier();
   $('[data-sheet-title]').textContent = state.qty > 1 ? `Datos de las ${state.qty} entradas` : 'Datos de la entrada';
   // conservar lo ya escrito si cambia la cantidad
-  state.attendees = Array.from({ length: state.qty }, (_, i) => state.attendees[i] || { first_name: '', last_name: '', email: '' });
+  state.attendees = Array.from({ length: state.qty }, (_, i) => state.attendees[i] || { first_name: '', last_name: '' });
 
   body.innerHTML = `
     <form novalidate data-form>
-      <p class="att-intro">Cada entrada es nominativa: necesitamos nombre, apellido y correo de cada persona.</p>
+      <p class="att-intro">Cada entrada es nominativa: necesitamos nombre y apellido de cada persona.</p>
       ${state.attendees.map((a, i) => `
         <fieldset class="att">
           <legend>Entrada ${i + 1} · ${esc(t.name)}</legend>
@@ -305,8 +333,6 @@ function step2() {
               <input class="input" name="first_name" data-i="${i}" autocomplete="${i ? 'off' : 'given-name'}" value="${esc(a.first_name)}" required /></label>
             <label class="field"><span>Apellido</span>
               <input class="input" name="last_name" data-i="${i}" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
-            <label class="field field--full"><span>Correo electrónico</span>
-              <input class="input" type="email" inputmode="email" name="email" data-i="${i}" autocomplete="${i ? 'off' : 'email'}" value="${esc(a.email)}" required /></label>
           </div>
         </fieldset>`).join('')}
       <div data-form-error></div>
@@ -328,7 +354,7 @@ function step2() {
   setTimeout(() => $('input', body)?.focus({ preventScroll: true }), 280);
 }
 
-const valid = (el) => (el.name === 'email' ? isEmail(el.value) : el.value.trim().length > 0);
+const valid = (el) => el.value.trim().length > 0;
 
 async function submit() {
   if (state.busy) return;
@@ -355,7 +381,18 @@ async function submit() {
     state.order = await createOrder(state.tierId, state.attendees.map((a) => ({ ...a })));
     state.step = 3;
     renderStep(1);
+    syncEvent(); // esta compra pudo agotar el tramo
   } catch (err) {
+    const was = tier()?.name;
+    if (await syncEvent()) {
+      // el tramo se agotó mientras se llenaba el formulario: volver a elegir con el precio nuevo
+      const now = onSale(state.event);
+      if (!now) { closeSheet(); toast('Entradas agotadas', 'error'); return; }
+      state.step = 1;
+      renderStep(-1);
+      toast(`${was} se agotó. Ahora está disponible ${now.name}.`, 'error');
+      return;
+    }
     errBox.innerHTML = `<p class="form-error" role="alert">${esc(err.message || 'No pudimos crear la orden. Intenta de nuevo.')}</p>`;
     btn.disabled = false;
     btn.innerHTML = label;

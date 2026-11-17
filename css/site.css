@@ -243,7 +243,8 @@
 .tier[aria-checked='true']::after { opacity: 1; transform: none; }
 .tier[aria-checked='true'] small { color: var(--accent); }
 .tier[aria-disabled='true'] { cursor: not-allowed; }
-.tier[aria-disabled='true'] b { color: var(--dim); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.tier[aria-disabled='true'] b { color: var(--dim); }
+.tier[data-state='agotada'] b { text-decoration: line-through; text-decoration-thickness: 1.5px; }
 @media (hover: hover) and (pointer: fine) { .tier:not([aria-disabled='true']):hover { background: rgba(255, 255, 255, 0.04); } }
 .event__buy { margin-top: 14px; height: 48px; justify-content: space-between; padding: 0 16px; }
 .event__buy span { display: inline-flex; align-items: center; gap: 10px; }

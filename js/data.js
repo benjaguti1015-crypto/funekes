@@ -1,6 +1,5 @@
 // Capa de datos: Supabase si hay credenciales, si no MODO DEMO (localStorage).
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { isEmail } from './util.js';
 
 export const DEMO = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
@@ -17,29 +16,27 @@ const unwrap = ({ data, error }) => {
 };
 
 // ───────────────────────── DEMO ─────────────────────────
-const KEY = 'funekes-demo-v2';
+const KEY = 'funekes-demo-v3';
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 
 function seed() {
   const chao = uid(), hall = uid();
   const people = [
-    ['Catalina', 'Muñoz', 'cata.munoz@gmail.com'], ['Benjamín', 'Soto', 'benja.soto@gmail.com'],
-    ['Javiera', 'Rojas', 'javi.rojas@hotmail.com'], ['Matías', 'Contreras', 'mati.c@gmail.com'],
-    ['Antonia', 'Fuentes', 'anto.fuentes@gmail.com'],
+    ['Catalina', 'Muñoz'], ['Benjamín', 'Soto'], ['Javiera', 'Rojas'], ['Matías', 'Contreras'], ['Antonia', 'Fuentes'],
   ];
   const tiers = [
-    { id: uid(), event_id: chao, name: 'Preventa 1', price: 4000, capacity: null, sort_order: 1, is_active: true },
-    { id: uid(), event_id: chao, name: 'Preventa 2', price: 5000, capacity: null, sort_order: 2, is_active: true },
-    { id: uid(), event_id: chao, name: 'General', price: 7000, capacity: null, sort_order: 3, is_active: true },
+    { id: uid(), event_id: chao, name: 'Preventa 1', price: 4000, capacity: 10, max_per_order: 1, sort_order: 1, is_active: true },
+    { id: uid(), event_id: chao, name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, sort_order: 2, is_active: true },
+    { id: uid(), event_id: chao, name: 'Puerta', price: 6000, capacity: null, max_per_order: null, sort_order: 3, is_active: true },
   ];
   const mk = (code, tier, who, status, hoursAgo) => {
     const created = new Date(Date.now() - hoursAgo * 3600e3).toISOString();
     return {
       id: uid(), code, event_id: chao, tier_id: tier.id, tier_name: tier.name,
-      buyer_name: `${who[0][0]} ${who[0][1]}`, buyer_email: who[0][2],
+      buyer_name: `${who[0][0]} ${who[0][1]}`,
       quantity: who.length, unit_price: tier.price, total: tier.price * who.length,
       status, created_at: created, paid_at: status === 'pagado' ? created : null,
-      tickets: who.map((p) => ({ id: uid(), first_name: p[0], last_name: p[1], email: p[2] })),
+      tickets: who.map((p) => ({ id: uid(), first_name: p[0], last_name: p[1] })),
     };
   };
   return {
@@ -62,9 +59,9 @@ function seed() {
     ],
     tiers,
     orders: [
-      mk('FNK-7Q2KX', tiers[0], [people[0], people[1]], 'pagado', 70),
+      mk('FNK-7Q2KX', tiers[0], [people[0]], 'pagado', 70),
       mk('FNK-M4RT9', tiers[0], [people[2]], 'pagado', 52),
-      mk('FNK-H8PLC', tiers[1], [people[3], people[4], people[0]], 'pendiente', 5),
+      mk('FNK-H8PLC', tiers[0], [people[3]], 'pendiente', 5),
     ],
   };
 }
@@ -82,6 +79,9 @@ function save(s) {
 }
 const wait = (ms = 350) => new Promise((r) => setTimeout(r, ms));
 const CODE_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const demoSold = (s, tierId) =>
+  s.orders.filter((o) => o.tier_id === tierId && o.status !== 'cancelado').reduce((n, o) => n + o.quantity, 0);
+const demoSoldOut = (s, t) => !!t.capacity && demoSold(s, t.id) >= t.capacity;
 
 // ───────────────────────── API PÚBLICA ─────────────────────────
 
@@ -91,22 +91,38 @@ export async function getSettings() {
   return unwrap(await c.from('settings').select('*').eq('id', 1).maybeSingle()) || {};
 }
 
-/** Eventos publicados con sus tramos, ordenados por fecha */
+/**
+ * Eventos con sus tramos, ordenados por fecha.
+ * Público: cada tramo trae `sold_out` pero NO el cupo ni lo vendido.
+ * Admin (includeHidden): tramos completos, con cupo.
+ */
 export async function getEvents({ includeHidden = false } = {}) {
   if (DEMO) {
     const s = load();
+    const pub = ({ capacity, ...t }) => ({ ...t, sold_out: demoSoldOut(s, { capacity, ...t }) });
     return s.events
       .filter((e) => includeHidden || e.is_published)
-      .map((e) => ({ ...e, tiers: s.tiers.filter((t) => t.event_id === e.id).sort((a, b) => a.sort_order - b.sort_order) }))
+      .map((e) => ({
+        ...e,
+        tiers: s.tiers.filter((t) => t.event_id === e.id).sort((a, b) => a.sort_order - b.sort_order)
+          .map((t) => (includeHidden ? { ...t } : pub(t))),
+      }))
       .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
   }
   const c = await client();
-  const rows = unwrap(await c.from('events').select('*, tiers:ticket_tiers(*)').order('starts_at', { ascending: true }));
-  rows.forEach((e) => e.tiers.sort((a, b) => a.sort_order - b.sort_order));
-  return rows;
+  if (includeHidden) {
+    const rows = unwrap(await c.from('events').select('*, tiers:ticket_tiers(*)').order('starts_at', { ascending: true }));
+    rows.forEach((e) => e.tiers.sort((a, b) => a.sort_order - b.sort_order));
+    return rows;
+  }
+  const [events, tiers] = await Promise.all([
+    c.from('events').select('*').order('starts_at', { ascending: true }),
+    c.from('tiers_public').select('*').order('sort_order', { ascending: true }),
+  ]).then((r) => r.map(unwrap));
+  return events.map((e) => ({ ...e, tiers: tiers.filter((t) => t.event_id === e.id) }));
 }
 
-/** attendees: [{first_name,last_name,email}] → {code,total,quantity,unit_price,tier_name,event_title} */
+/** attendees: [{first_name,last_name}] → {code,total,quantity,unit_price,tier_name,event_title} */
 export async function createOrder(tierId, attendees) {
   if (DEMO) {
     await wait(600);
@@ -114,23 +130,28 @@ export async function createOrder(tierId, attendees) {
     const tier = s.tiers.find((t) => t.id === tierId);
     if (!tier || !tier.is_active) throw new Error('Este tramo de entradas no está disponible');
     if (attendees.length < 1 || attendees.length > 10) throw new Error('Puedes comprar entre 1 y 10 entradas por orden');
+    if (attendees.length > (tier.max_per_order || 10)) {
+      throw new Error(tier.max_per_order === 1 ? `${tier.name} es 1 entrada por persona` : `En ${tier.name} puedes comprar hasta ${tier.max_per_order} entradas por orden`);
+    }
     for (const a of attendees) {
       if (!a.first_name.trim() || !a.last_name.trim()) throw new Error('Cada entrada necesita nombre y apellido');
-      if (!isEmail(a.email)) throw new Error(`Correo inválido: ${a.email || '(vacío)'}`);
     }
+    const earlierOpen = s.tiers.some((p) => p.event_id === tier.event_id && p.is_active && p.sort_order < tier.sort_order && !demoSoldOut(s, p));
+    if (earlierOpen) throw new Error(`${tier.name} todavía no está a la venta`);
     if (tier.capacity) {
-      const sold = s.orders.filter((o) => o.tier_id === tier.id && o.status !== 'cancelado').reduce((n, o) => n + o.quantity, 0);
-      if (sold + attendees.length > tier.capacity) throw new Error(`Quedan ${Math.max(tier.capacity - sold, 0)} entradas en ${tier.name}`);
+      const sold = demoSold(s, tier.id);
+      if (sold >= tier.capacity) throw new Error(`${tier.name} se agotó`);
+      if (sold + attendees.length > tier.capacity) throw new Error(`No quedan suficientes entradas en ${tier.name} para esa cantidad. Prueba con menos.`);
     }
     let code;
     do {
       code = 'FNK-' + Array.from({ length: 5 }, () => CODE_ALPHA[Math.floor(Math.random() * CODE_ALPHA.length)]).join('');
     } while (s.orders.some((o) => o.code === code));
     const ev = s.events.find((e) => e.id === tier.event_id);
-    const clean = attendees.map((a) => ({ id: uid(), first_name: a.first_name.trim(), last_name: a.last_name.trim(), email: a.email.trim().toLowerCase() }));
+    const clean = attendees.map((a) => ({ id: uid(), first_name: a.first_name.trim(), last_name: a.last_name.trim() }));
     s.orders.push({
       id: uid(), code, event_id: ev.id, tier_id: tier.id, tier_name: tier.name,
-      buyer_name: `${clean[0].first_name} ${clean[0].last_name}`, buyer_email: clean[0].email,
+      buyer_name: `${clean[0].first_name} ${clean[0].last_name}`,
       quantity: clean.length, unit_price: tier.price, total: tier.price * clean.length,
       status: 'pendiente', created_at: new Date().toISOString(), paid_at: null, tickets: clean,
     });
@@ -138,7 +159,8 @@ export async function createOrder(tierId, attendees) {
     return { code, event_title: ev.title, tier_name: tier.name, quantity: clean.length, unit_price: tier.price, total: tier.price * clean.length };
   }
   const c = await client();
-  return unwrap(await c.rpc('create_order', { p_tier_id: tierId, p_attendees: attendees }));
+  const people = attendees.map((a) => ({ first_name: a.first_name, last_name: a.last_name }));
+  return unwrap(await c.rpc('create_order', { p_tier_id: tierId, p_attendees: people }));
 }
 
 // ───────────────────────── ADMIN ─────────────────────────
@@ -210,7 +232,7 @@ export async function saveEvent(ev, tiers, removedTierIds = []) {
     else { id = uid(); s.events.push({ id, ...row }); }
     s.tiers = s.tiers.filter((t) => !removedTierIds.includes(t.id));
     tiers.forEach((t, i) => {
-      const data = { name: t.name, price: +t.price, capacity: t.capacity ? +t.capacity : null, is_active: !!t.is_active, sort_order: i + 1 };
+      const data = { name: t.name, price: +t.price, capacity: t.capacity ? +t.capacity : null, max_per_order: t.max_per_order ? +t.max_per_order : null, is_active: !!t.is_active, sort_order: i + 1 };
       const found = t.id && s.tiers.find((x) => x.id === t.id);
       if (found) Object.assign(found, data);
       else s.tiers.push({ id: uid(), event_id: id, ...data });
@@ -228,7 +250,7 @@ export async function saveEvent(ev, tiers, removedTierIds = []) {
     if (error) throw new Error(error.code === '23503' ? 'No puedes borrar un tramo con órdenes. Desactívalo.' : error.message);
   }
   for (const [i, t] of tiers.entries()) {
-    const data = { event_id: id, name: t.name, price: +t.price, capacity: t.capacity ? +t.capacity : null, is_active: !!t.is_active, sort_order: i + 1 };
+    const data = { event_id: id, name: t.name, price: +t.price, capacity: t.capacity ? +t.capacity : null, max_per_order: t.max_per_order ? +t.max_per_order : null, is_active: !!t.is_active, sort_order: i + 1 };
     if (t.id) unwrap(await c.from('ticket_tiers').update(data).eq('id', t.id));
     else unwrap(await c.from('ticket_tiers').insert(data));
   }

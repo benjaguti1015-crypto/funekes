@@ -145,7 +145,7 @@ function filtered() {
   return evOrders().filter((o) => {
     if (st.filter !== 'all' && o.status !== st.filter) return false;
     if (!st.q) return true;
-    const hay = [o.code, o.buyer_name, o.buyer_email, ...(o.tickets || []).flatMap((t) => [t.first_name, t.last_name, t.email])].join(' ').toLowerCase();
+    const hay = [o.code, o.buyer_name, ...(o.tickets || []).flatMap((t) => [t.first_name, t.last_name])].join(' ').toLowerCase();
     return hay.includes(st.q);
   });
 }
@@ -165,7 +165,7 @@ function rowHTML(o) {
   return `
     <div class="tr row" role="row" data-id="${o.id}" aria-expanded="${open}" tabindex="0">
       <span class="code" role="cell">${icon('chev')}${esc(o.code)}</span>
-      <span class="who" role="cell"><b>${esc(o.buyer_name)}</b><small>${esc(o.buyer_email)}</small></span>
+      <span class="who" role="cell"><b>${esc(o.buyer_name)}</b>${o.quantity > 1 ? `<small>+ ${o.quantity - 1} ${o.quantity === 2 ? 'persona' : 'personas'}</small>` : ''}</span>
       <span class="muted" role="cell">${o.quantity} × ${esc(o.tier_name)}</span>
       <span class="num r" role="cell">${o.quantity}</span>
       <span class="num r" role="cell"><b>${money(o.total)}</b></span>
@@ -175,7 +175,7 @@ function rowHTML(o) {
       <div class="detail" data-open="${open}">
         <div>
           <ul class="att-list">
-            ${(o.tickets || []).map((t) => `<li><span>${esc(t.first_name)} ${esc(t.last_name)}</span><span>${esc(t.email)}</span></li>`).join('')}
+            ${(o.tickets || []).map((t) => `<li><span>${esc(t.first_name)} ${esc(t.last_name)}</span></li>`).join('')}
           </ul>
           <p class="att-meta">
             <span>Precio unitario: ${money(o.unit_price)}</span>
@@ -283,9 +283,9 @@ function openEditor(id) {
       venue: 'Recinto y horario por anunciar', cover_url: null, is_published: true,
     },
     tiers: ev ? ev.tiers.map((t) => ({ ...t })) : [
-      { name: 'Preventa 1', price: 4000, capacity: null, is_active: true },
-      { name: 'Preventa 2', price: 5000, capacity: null, is_active: true },
-      { name: 'General', price: 7000, capacity: null, is_active: true },
+      { name: 'Preventa 1', price: 4000, capacity: 10, max_per_order: 1, is_active: true },
+      { name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, is_active: true },
+      { name: 'Puerta', price: 6000, capacity: null, max_per_order: null, is_active: true },
     ],
     removed: [],
   };
@@ -341,7 +341,7 @@ function renderEditor() {
       </section>
 
       <section class="block">
-        <div class="block__h"><div><h2>Entradas y precios</h2><p>Desactiva un tramo para marcarlo como agotado.</p></div>
+        <div class="block__h"><div><h2>Entradas y precios</h2><p>Se venden en orden: al agotarse el cupo de un tramo se abre el siguiente. El cupo no se muestra al público. Máx. por compra en 1 = una entrada por persona. Desactiva un tramo para cerrarlo a mano.</p></div>
           <button type="button" class="btn btn--quiet btn--sm" data-add-tier>${icon('plus')}Agregar tramo</button>
         </div>
         <div class="tier-rows">
@@ -350,6 +350,7 @@ function renderEditor() {
               <label class="field"><span>Nombre</span><input class="input" data-tf="name" value="${esc(t.name)}" /></label>
               <label class="field"><span>Precio (CLP)</span><span class="money-in"><input class="input" data-tf="price" inputmode="numeric" value="${t.price ?? ''}" /></span></label>
               <label class="field"><span>Cupo</span><input class="input" data-tf="capacity" inputmode="numeric" placeholder="∞" value="${t.capacity ?? ''}" /></label>
+              <label class="field"><span>Máx. por compra</span><input class="input" data-tf="max_per_order" inputmode="numeric" placeholder="10" value="${t.max_per_order ?? ''}" /></label>
               <label class="switch" title="Tramo activo"><input type="checkbox" data-tf="is_active" ${t.is_active ? 'checked' : ''} /><i></i></label>
               <button type="button" class="iconbtn" data-del-tier="${i}" aria-label="Eliminar tramo">${icon('trash')}</button>
             </div>`).join('')}
@@ -395,6 +396,8 @@ function readForm(form) {
     t.price = parseInt($('[data-tf=price]', row).value.replace(/\D/g, ''), 10);
     const cap = parseInt($('[data-tf=capacity]', row).value.replace(/\D/g, ''), 10);
     t.capacity = Number.isFinite(cap) && cap > 0 ? cap : null;
+    const mx = parseInt($('[data-tf=max_per_order]', row).value.replace(/\D/g, ''), 10);
+    t.max_per_order = Number.isFinite(mx) && mx >= 1 && mx < 10 ? mx : null;
     t.is_active = $('[data-tf=is_active]', row).checked;
   });
 }
@@ -404,7 +407,7 @@ function bindEditor(ed) {
   $$('[data-back]', ed).forEach((b) => b.addEventListener('click', closeEditor));
   $('[data-add-tier]', ed).addEventListener('click', () => {
     readForm(form);
-    draft.tiers.push({ name: '', price: '', capacity: null, is_active: true });
+    draft.tiers.push({ name: '', price: '', capacity: null, max_per_order: null, is_active: true });
     renderEditor();
     $$('[data-tf=name]').at(-1).focus();
   });
