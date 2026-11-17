@@ -639,8 +639,8 @@ on conflict (id) do nothing;
 insert into public.events (slug, title, subtitle, format_label, starts_at, location, venue, cover_url)
 values ('chao-clases-2026', 'Chao Clases 2026',
         'Una noche con DJs para despedir el año de clases.',
-        'Formato discoteca', '2026-12-12 23:00:00-03', 'Tomé, Biobío',
-        'Recinto y horario por anunciar', null)
+        'Formato discoteca', '2026-12-12 21:00:00-03', 'Tomé, Biobío',
+        'De 21:00 a 04:00 hrs · Recinto por anunciar', null)
 on conflict (slug) do nothing;
 
 insert into public.events (slug, title, subtitle, format_label, starts_at, location, venue,
