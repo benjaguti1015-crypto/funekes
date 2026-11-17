@@ -120,7 +120,8 @@ create table if not exists public.orders (
                check (status in ('pendiente','pagado','cancelado')),
   notes        text,
   created_at   timestamptz not null default now(),
-  paid_at      timestamptz
+  paid_at      timestamptz,
+  terms_accepted_at timestamptz             -- cuándo aceptó términos y privacidad
 );
 create index if not exists orders_event_idx  on public.orders(event_id);
 create index if not exists orders_status_idx on public.orders(status);
@@ -143,6 +144,9 @@ alter table public.tickets add column if not exists qr_code text not null defaul
 alter table public.tickets add column if not exists checked_in_at timestamptz;
 alter table public.tickets add column if not exists checked_in_by uuid;
 create unique index if not exists tickets_qr_code_key on public.tickets(qr_code);
+
+-- Migración: registro de la aceptación de términos y privacidad
+alter table public.orders add column if not exists terms_accepted_at timestamptz;
 
 -- Migración: solo se pide nombre y apellido (instalaciones anteriores pedían correo)
 alter table public.orders  alter column buyer_email drop not null;
@@ -236,7 +240,9 @@ $$;
 -- Crea una orden. El precio SIEMPRE se calcula acá, nunca en el navegador.
 -- Venta escalonada: solo se vende el primer tramo activo con cupo disponible.
 -- p_attendees: [{"first_name":"...","last_name":"..."}, ...]
-create or replace function public.create_order(p_tier_id uuid, p_attendees jsonb)
+-- p_accepted:  el comprador marcó "acepto los términos y la política de privacidad"
+drop function if exists public.create_order(uuid, jsonb);
+create or replace function public.create_order(p_tier_id uuid, p_attendees jsonb, p_accepted boolean default false)
 returns jsonb
 language plpgsql security definer
 set search_path = public
@@ -252,6 +258,9 @@ declare
   v_alpha  constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   i        int;
 begin
+  if not coalesce(p_accepted, false) then
+    raise exception 'Para comprar tienes que aceptar los Términos y condiciones y la Política de privacidad';
+  end if;
   if p_attendees is null or jsonb_typeof(p_attendees) <> 'array' then
     raise exception 'Faltan los datos de los asistentes';
   end if;
@@ -309,6 +318,9 @@ begin
        or coalesce(trim(v_a->>'last_name'), '') = '' then
       raise exception 'Cada entrada necesita nombre y apellido';
     end if;
+    if length(trim(v_a->>'first_name')) > 60 or length(trim(v_a->>'last_name')) > 60 then
+      raise exception 'El nombre y el apellido pueden tener hasta 60 caracteres cada uno';
+    end if;
   end loop;
 
   -- código corto y único, ej. FNK-7Q2KX
@@ -321,11 +333,11 @@ begin
   end loop;
 
   insert into public.orders
-    (code, event_id, tier_id, tier_name, buyer_name, quantity, unit_price, total)
+    (code, event_id, tier_id, tier_name, buyer_name, quantity, unit_price, total, terms_accepted_at)
   values
     (v_code, v_event.id, v_tier.id, v_tier.name,
      trim(p_attendees->0->>'first_name') || ' ' || trim(p_attendees->0->>'last_name'),
-     v_qty, v_tier.price, v_tier.price * v_qty)
+     v_qty, v_tier.price, v_tier.price * v_qty, now())
   returning id into v_order;
 
   insert into public.tickets (order_id, first_name, last_name)
@@ -437,6 +449,9 @@ begin
   if coalesce(trim(p_first_name), '') = '' or coalesce(trim(p_last_name), '') = '' then
     raise exception 'Faltan el nombre y el apellido de quien recibe la entrada';
   end if;
+  if length(trim(p_first_name)) > 60 or length(trim(p_last_name)) > 60 then
+    raise exception 'El nombre y el apellido pueden tener hasta 60 caracteres cada uno';
+  end if;
 
   select * into v_t from public.tickets where id = p_ticket_id for update;
   if not found then
@@ -471,8 +486,8 @@ grant execute on function public.transfer_ticket(uuid, text, text) to authentica
 grant execute on function public.is_staff()                        to anon, authenticated;
 grant execute on function public.staff_role()                      to anon, authenticated;
 
-revoke all on function public.create_order(uuid, jsonb) from public;
-grant execute on function public.create_order(uuid, jsonb) to anon, authenticated;
+revoke all on function public.create_order(uuid, jsonb, boolean) from public;
+grant execute on function public.create_order(uuid, jsonb, boolean) to anon, authenticated;
 revoke all on function public.tier_sold(uuid) from public, anon, authenticated;
 grant execute on function public.is_admin()                 to anon, authenticated;
 
@@ -523,6 +538,8 @@ with (security_invoker = false) as
   from public.ticket_tiers t
   join public.events e on e.id = t.event_id
   where e.is_published;
+-- solo lectura: Supabase da todos los permisos por defecto a los objetos nuevos
+revoke all on public.tiers_public from anon, authenticated;
 grant select on public.tiers_public to anon, authenticated;
 
 -- orders / tickets: solo admins (el público crea vía create_order)

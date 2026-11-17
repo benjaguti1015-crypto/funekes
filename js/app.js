@@ -11,6 +11,7 @@ const state = {
   tierId: null,
   qty: 1,
   attendees: [],
+  accept: false, // aceptó términos y privacidad (se pide en cada compra)
   step: 1,
   order: null,
   busy: false,
@@ -217,6 +218,7 @@ function openSheet() {
   state.tierId = onSale(ev).id;
   state.step = 1;
   state.order = null;
+  state.accept = false;
   lastFocus = document.activeElement;
   $('[data-sheet-event]').textContent = `${ev.title} · ${shortDate(ev.starts_at)}`;
   renderStep(0);
@@ -339,14 +341,19 @@ function step2() {
           <legend>Entrada ${i + 1} · ${esc(t.name)}</legend>
           <div class="att__grid">
             <label class="field"><span>Nombre</span>
-              <input class="input" name="first_name" data-i="${i}" autocomplete="${i ? 'off' : 'given-name'}" value="${esc(a.first_name)}" required /></label>
+              <input class="input" name="first_name" data-i="${i}" maxlength="60" autocomplete="${i ? 'off' : 'given-name'}" value="${esc(a.first_name)}" required /></label>
             <label class="field"><span>Apellido</span>
-              <input class="input" name="last_name" data-i="${i}" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
+              <input class="input" name="last_name" data-i="${i}" maxlength="60" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
           </div>
         </fieldset>`).join('')}
-      <p class="att-legal">Tu nombre y apellido se usan solo para saber quién compró la entrada. Al confirmar declaras que eres mayor de 18 años y aceptas los
-        <a href="terminos.html" target="_blank" rel="noopener">Términos y condiciones</a> (entrada sin devolución, con traspaso por WhatsApp) y la
-        <a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>.</p>
+      <p class="att-legal">Tu nombre y apellido se usan solo para saber quién compró la entrada.</p>
+      <label class="accept" data-accept-box>
+        <input type="checkbox" name="accept" data-accept ${state.accept ? 'checked' : ''} />
+        <span class="accept__box" aria-hidden="true">${icon('check')}</span>
+        <span>Soy mayor de 18 años y acepto los
+          <a href="terminos.html" target="_blank" rel="noopener">Términos y condiciones</a> (entrada sin devolución, con traspaso por WhatsApp) y la
+          <a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>.</span>
+      </label>
       <div data-form-error></div>
       <button type="submit" hidden></button>
     </form>`;
@@ -357,6 +364,14 @@ function step2() {
   const form = $('[data-form]', body);
   form.addEventListener('input', (e) => {
     const el = e.target;
+    if (el.name === 'accept') {
+      state.accept = el.checked;
+      if (el.checked) {
+        $('[data-accept-box]', body).removeAttribute('data-invalid');
+        $('[data-form-error]', body).innerHTML = '';
+      }
+      return;
+    }
     state.attendees[+el.dataset.i][el.name] = el.value;
     if (el.getAttribute('aria-invalid') === 'true' && valid(el)) el.removeAttribute('aria-invalid');
   });
@@ -370,7 +385,7 @@ const valid = (el) => el.value.trim().length > 0;
 
 async function submit() {
   if (state.busy) return;
-  const inputs = $$('input', body);
+  const inputs = $$('input[data-i]', body);
   let firstBad = null;
   inputs.forEach((el) => {
     const ok = valid(el);
@@ -383,6 +398,14 @@ async function submit() {
     firstBad.focus();
     return;
   }
+  // sin el clic en "acepto" no se crea la orden
+  const accept = $('[data-accept]', body);
+  if (!accept.checked) {
+    $('[data-accept-box]', body).dataset.invalid = 'true';
+    errBox.innerHTML = `<p class="form-error" role="alert">Para comprar tienes que aceptar los Términos y condiciones y la Política de privacidad.</p>`;
+    accept.focus();
+    return;
+  }
   errBox.innerHTML = '';
   const btn = $('[data-submit]', foot);
   const label = btn.innerHTML;
@@ -390,7 +413,7 @@ async function submit() {
   btn.disabled = true;
   btn.innerHTML = `<span class="spin"></span> Creando orden…`;
   try {
-    state.order = await createOrder(state.tierId, state.attendees.map((a) => ({ ...a })));
+    state.order = await createOrder(state.tierId, state.attendees.map((a) => ({ ...a })), accept.checked);
     state.step = 3;
     renderStep(1);
     syncEvent(); // esta compra pudo agotar el tramo
