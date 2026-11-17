@@ -201,7 +201,7 @@ function renderContact(s) {
 
 function downloadICS(ev) {
   const d = new Date(ev.starts_at);
-  const end = new Date(d.getTime() + 6 * 3600e3);
+  const end = new Date(d.getTime() + 7 * 3600e3); // 21:00 a 04:00
   const f = (x) => x.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Funekes//ES', 'BEGIN:VEVENT',

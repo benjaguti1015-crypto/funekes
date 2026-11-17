@@ -48,7 +48,7 @@ function seed() {
       {
         id: chao, slug: 'chao-clases-2026', title: 'Chao Clases 2026',
         subtitle: 'Una noche con DJs para despedir el año de clases.', format_label: 'Formato discoteca',
-        starts_at: '2026-12-13T02:00:00.000Z', location: 'Tomé, Biobío', venue: 'Recinto y horario por anunciar',
+        starts_at: '2026-12-13T00:00:00.000Z', location: 'Tomé, Biobío', venue: 'De 21:00 a 04:00 hrs · Recinto por anunciar',
         cover_url: null, is_published: true,
       },
       {
