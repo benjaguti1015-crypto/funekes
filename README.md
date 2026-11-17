@@ -15,10 +15,12 @@ HTML + CSS + JS sin build. Backend: Supabase.
 ## Probar ya (modo demo)
 
 ```bash
-python3 -m http.server 8000
+npx serve .
 ```
 
-Abre `http://localhost:8000`. Para entrar al admin (`/admin.html`) o al escáner (`/puerta.html`) sirve cualquier correo y contraseña.
+Abre `http://localhost:3000`. Para entrar al admin (`/admin`) o al escáner (`/puerta`) sirve cualquier correo y contraseña.
+
+Las direcciones van sin `.html` (`/admin`, `/puerta`, `/terminos`, `/privacidad`): Vercel lo hace con `cleanUrls` en `vercel.json`, y si alguien escribe `/admin.html` lo redirige a `/admin`.
 Los datos se guardan solo en tu navegador.
 
 ## Conectar Supabase (producción)
@@ -37,7 +39,7 @@ Los datos se guardan solo en tu navegador.
    select id from auth.users where email = 'CORREO_DEL_GUARDIA'
    on conflict do nothing;
    ```
-   Esa cuenta entra a `/puerta.html` y solo puede escanear: no ve ventas, precios ni la lista de compradores.
+   Esa cuenta entra a `/puerta` y solo puede escanear: no ve ventas, precios ni la lista de compradores.
 6. En Vercel: **Add New → Project**, importa el repo y en **Framework Preset** elige **Other**.
 7. En **Environment Variables** agrega:
    - `SUPABASE_URL`: Project URL (Supabase → Project Settings → API)
@@ -63,7 +65,7 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 
 ## El día del evento
 
-1. El guardia abre `/puerta.html` en su celular, entra con su cuenta y da permiso a la cámara.
+1. El guardia abre `/puerta` en su celular, entra con su cuenta y da permiso a la cámara.
 2. Apunta al QR. La pantalla se pone **verde** (Adelante, con el nombre) o **roja** (ya ingresó, no pagada, cancelada, de otro evento o QR no válido).
 3. Cada QR sirve una sola vez. Si la cámara no lo lee, se puede escribir el código de 12 caracteres que sale debajo del QR.
 4. Necesita internet: cada escaneo se valida contra la base de datos.
