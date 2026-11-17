@@ -63,6 +63,13 @@ Si cambias las variables después, haz **Redeploy** para que se apliquen.
 6. En el admin, el dueño busca el código y marca la orden como **Pagado**. Desde ese momento el QR de la entrada es válido.
 7. En la fila de la orden pagada toca **Entrada PDF**: se descarga un PDF con el logo, el nombre y el QR. Ese archivo se lo manda al comprador por WhatsApp.
 
+## Abrir la Preventa 2
+
+La Preventa 2 **no se abre sola** cuando se agota la Preventa 1: la abres tú.
+Cuando se agota un tramo, en **Órdenes** aparece un aviso amarillo con el botón **Abrir Preventa 2**.
+También puedes hacerlo en **Eventos y precios**, encendiendo "A la venta" en ese tramo.
+Mientras tanto, la web muestra "Preventa 2 muy pronto" y no deja comprar.
+
 ## El día del evento
 
 1. El guardia abre `/puerta` en su celular, entra con su cuenta y da permiso a la cámara.
@@ -80,7 +87,7 @@ escribe el nombre y apellido de quien la recibe. Se genera un QR nuevo y el ante
 ## Seguridad
 
 - Nadie del público puede ver órdenes ni datos de otros compradores (RLS).
-- Las compras solo se crean con la función `create_order`, que valida el tramo, el cupo y el precio. Los tramos se venden en orden (al agotarse uno se abre el siguiente) y el cupo nunca se expone al público.
+- Las compras solo se crean con la función `create_order`, que valida el tramo, el cupo y el precio. Se vende un tramo a la vez y el cupo nunca se expone al público.
 - El QR lleva solo un código al azar de 12 caracteres, sin datos personales. Validarlo exige una cuenta de guardia o de admin.
 - El guardia no puede leer las tablas de órdenes ni de entradas: solo llama a la función `check_in`, que responde por un código a la vez.
 - Las órdenes sin pagar vencen a las 24 horas: nadie puede bloquear la venta con reservas falsas por más de un día.

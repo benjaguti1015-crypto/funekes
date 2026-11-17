@@ -1,7 +1,7 @@
 import {
   DEMO, getEvents, getSettings, getAdminSession, signIn, signOut,
   listOrders, setOrderStatus, saveEvent, saveSettings, uploadImage, resetDemo,
-  transferTicket, undoCheckIn,
+  transferTicket, undoCheckIn, setTierActive,
 } from './data.js';
 import { loadQR, qrSVG, downloadTicketsPDF } from './ticket.js';
 import { money, longDate, dateTime, esc, isPast, toLocalInput, fromLocalInput, slugify, toast } from './util.js';
@@ -103,6 +103,24 @@ function renderEventSelect() {
     .map((e) => `<option value="${e.id}" ${e.id === st.eventId ? 'selected' : ''}>${esc(e.title)} · ${esc(longDate(e.starts_at))}</option>`)
     .join('');
 }
+$('[data-tier-alert]').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-open-tier]');
+  if (!b) return;
+  const ev = st.events.find((x) => x.id === st.eventId);
+  const t = ev.tiers.find((x) => x.id === b.dataset.openTier);
+  if (!confirm(`¿Abrir la venta de ${t.name} a ${money(t.price)}? Desde ahora la gente puede comprarla en la página.`)) return;
+  b.disabled = true;
+  try {
+    await setTierActive(t.id, true);
+    t.is_active = true;
+    renderOrders();
+    renderEventsList();
+    toast(`${t.name} abierta a la venta`);
+  } catch (ex) {
+    b.disabled = false;
+    toast(ex.message, 'error');
+  }
+});
 $('[data-ev-select]').addEventListener('change', (e) => { st.eventId = e.target.value; st.open.clear(); st.transfer = null; renderOrders(); });
 $('[data-reload]').addEventListener('click', async (e) => {
   const b = e.currentTarget;
@@ -135,11 +153,27 @@ function renderOrders() {
     <div class="kpi kpi--accent"><small>Por cobrar</small><b>${money(sum(pend, 'total'))}</b><span>${pend.length} pendientes</span></div>`;
 
   const ev = st.events.find((e) => e.id === st.eventId);
+  const soldIn = (t) => live.filter((o) => o.tier_id === t.id).reduce((a, o) => a + o.quantity, 0);
+  const full = (t) => !!t.capacity && soldIn(t) >= t.capacity;
+  const web = (ev?.tiers || []).filter((t) => !t.door_only);
+  const selling = web.find((t) => t.is_active && !full(t));
   $('[data-tierbar]').innerHTML = (ev?.tiers || []).map((t) => {
-    const n = live.filter((o) => o.tier_id === t.id).reduce((a, o) => a + o.quantity, 0);
     if (t.door_only) return `<span>${esc(t.name)} · <b>solo en puerta</b></span>`;
-    return `<span>${esc(t.name)} · <b>${n}${t.capacity ? ` / ${t.capacity}` : ''}</b></span>`;
+    const tag = full(t) ? '<i class="tg tg--off">agotada</i>' : t === selling ? '<i class="tg tg--on">a la venta</i>' : t.is_active ? '<i class="tg">en espera</i>' : '<i class="tg">cerrada</i>';
+    return `<span>${esc(t.name)} · <b>${soldIn(t)}${t.capacity ? ` / ${t.capacity}` : ''}</b> ${tag}</span>`;
   }).join('') + `<span>Ingresaron · <b>${paid.flatMap((o) => o.tickets || []).filter((t) => t.checked_in_at).length} / ${sum(paid, 'quantity')}</b></span>`;
+
+  // nada a la venta y el siguiente tramo cerrado: el admin decide cuándo abrirlo
+  const next = !selling && web.find((t) => !t.is_active && !full(t));
+  const gone = web.filter(full).at(-1);
+  const alert = $('[data-tier-alert]');
+  alert.hidden = !next;
+  if (next) {
+    alert.innerHTML = `
+      <div><b>${gone ? `${esc(gone.name)} se agotó.` : 'No hay ningún tramo a la venta.'}</b>
+        <span>Nadie puede comprar entradas hasta que abras la ${esc(next.name)} (${money(next.price)}).</span></div>
+      <button class="btn btn--primary btn--sm" data-open-tier="${next.id}">Abrir ${esc(next.name)}</button>`;
+  }
 
   const counts = { pendiente: pend.length, pagado: paid.length, cancelado: os.length - live.length, all: os.length };
   $$('[data-c]').forEach((i) => (i.textContent = counts[i.dataset.c]));
@@ -398,7 +432,7 @@ function openEditor(id) {
     },
     tiers: ev ? ev.tiers.map((t) => ({ ...t })) : [
       { name: 'Preventa 1', price: 4000, capacity: 10, max_per_order: 1, is_active: true },
-      { name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, is_active: true },
+      { name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, is_active: false },
       { name: 'Puerta', price: 6000, capacity: null, max_per_order: null, door_only: true, is_active: true },
     ],
     removed: [],
@@ -455,7 +489,7 @@ function renderEditor() {
       </section>
 
       <section class="block">
-        <div class="block__h"><div><h2>Entradas y precios</h2><p>Se venden en orden: al agotarse el cupo de un tramo se abre el siguiente. El cupo no se muestra al público. Máx. por compra en 1 = una entrada por persona. "Solo puerta" = se muestra el precio pero no se vende en la web (efectivo en la entrada). Desactiva un tramo para cerrarlo a mano.</p></div>
+        <div class="block__h"><div><h2>Entradas y precios</h2><p>Solo se vende un tramo a la vez, en orden, y solo los que tienen "A la venta" encendido. Cuando se agota uno, el siguiente <b>no se abre solo</b>: lo abres tú (también desde el aviso en Órdenes). El cupo no se muestra al público. Máx. por compra en 1 = una entrada por persona. "Solo puerta" = se muestra el precio pero no se vende en la web.</p></div>
           <button type="button" class="btn btn--quiet btn--sm" data-add-tier>${icon('plus')}Agregar tramo</button>
         </div>
         <div class="tier-rows">
@@ -466,7 +500,7 @@ function renderEditor() {
               <label class="field"><span>Cupo</span><input class="input" data-tf="capacity" inputmode="numeric" placeholder="∞" value="${t.capacity ?? ''}" /></label>
               <label class="field"><span>Máx. por compra</span><input class="input" data-tf="max_per_order" inputmode="numeric" placeholder="10" value="${t.max_per_order ?? ''}" /></label>
               <div class="field sw"><span>Solo puerta</span><label class="switch" title="Se vende solo en la entrada, en efectivo. No se puede comprar en la web."><input type="checkbox" data-tf="door_only" ${t.door_only ? 'checked' : ''} /><i></i></label></div>
-              <div class="field sw"><span>Activo</span><label class="switch" title="Tramo activo"><input type="checkbox" data-tf="is_active" ${t.is_active ? 'checked' : ''} /><i></i></label></div>
+              <div class="field sw"><span>A la venta</span><label class="switch" title="Abierto a la venta"><input type="checkbox" data-tf="is_active" ${t.is_active ? 'checked' : ''} /><i></i></label></div>
               <button type="button" class="iconbtn" data-del-tier="${i}" aria-label="Eliminar tramo">${icon('trash')}</button>
             </div>`).join('')}
         </div>
