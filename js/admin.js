@@ -173,8 +173,8 @@ function ticketHTML(o, t, open) {
     <li class="tk tk--edit" data-ticket="${t.id}">
       <form class="tk__form" data-transfer-form novalidate>
         <p class="tk__formh">Traspasar la entrada de <b>${esc(t.first_name)} ${esc(t.last_name)}</b></p>
-        <label class="field"><span>Nombre de quien la recibe</span><input class="input" name="first_name" autocomplete="off" required /></label>
-        <label class="field"><span>Apellido</span><input class="input" name="last_name" autocomplete="off" required /></label>
+        <label class="field"><span>Nombre de quien la recibe</span><input class="input" name="first_name" maxlength="60" autocomplete="off" required /></label>
+        <label class="field"><span>Apellido</span><input class="input" name="last_name" maxlength="60" autocomplete="off" required /></label>
         <div class="tk__formb">
           <button class="btn btn--primary btn--sm" type="submit">Traspasar</button>
           <button class="btn btn--quiet btn--sm" type="button" data-transfer-cancel>Cancelar</button>
@@ -221,6 +221,7 @@ function rowHTML(o) {
           <p class="att-meta">
             <span>Precio unitario: ${money(o.unit_price)}</span>
             ${o.paid_at ? `<span>Pagado: ${esc(dateTime(o.paid_at))}</span>` : ''}
+            ${o.terms_accepted_at ? `<span>Aceptó términos y privacidad: ${esc(dateTime(o.terms_accepted_at))}</span>` : ''}
           </p>
         </div>
       </div>

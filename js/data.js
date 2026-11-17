@@ -128,20 +128,25 @@ export async function getEvents({ includeHidden = false } = {}) {
   return events.map((e) => ({ ...e, tiers: tiers.filter((t) => t.event_id === e.id) }));
 }
 
-/** attendees: [{first_name,last_name}] → {code,total,quantity,unit_price,tier_name,event_title} */
-export async function createOrder(tierId, attendees) {
+/**
+ * attendees: [{first_name,last_name}] → {code,total,quantity,unit_price,tier_name,event_title}
+ * accepted: el comprador marcó la casilla de términos y privacidad (obligatorio).
+ */
+export async function createOrder(tierId, attendees, accepted = false) {
   if (DEMO) {
     await wait(600);
     const s = load();
     const tier = s.tiers.find((t) => t.id === tierId);
     if (!tier || !tier.is_active) throw new Error('Este tramo de entradas no está disponible');
     if (tier.door_only) throw new Error(`${tier.name} se vende solo en la entrada del evento, en efectivo`);
+    if (!accepted) throw new Error('Para comprar tienes que aceptar los Términos y condiciones y la Política de privacidad');
     if (attendees.length < 1 || attendees.length > 10) throw new Error('Puedes comprar entre 1 y 10 entradas por orden');
     if (attendees.length > (tier.max_per_order || 10)) {
       throw new Error(tier.max_per_order === 1 ? `${tier.name} es 1 entrada por persona` : `En ${tier.name} puedes comprar hasta ${tier.max_per_order} entradas por orden`);
     }
     for (const a of attendees) {
       if (!a.first_name.trim() || !a.last_name.trim()) throw new Error('Cada entrada necesita nombre y apellido');
+      if (a.first_name.trim().length > 60 || a.last_name.trim().length > 60) throw new Error('El nombre y el apellido pueden tener hasta 60 caracteres cada uno');
     }
     const earlierOpen = s.tiers.some((p) => p.event_id === tier.event_id && p.is_active && !p.door_only && p.sort_order < tier.sort_order && !demoSoldOut(s, p));
     if (earlierOpen) throw new Error(`${tier.name} todavía no está a la venta`);
@@ -160,14 +165,19 @@ export async function createOrder(tierId, attendees) {
       id: uid(), code, event_id: ev.id, tier_id: tier.id, tier_name: tier.name,
       buyer_name: `${clean[0].first_name} ${clean[0].last_name}`,
       quantity: clean.length, unit_price: tier.price, total: tier.price * clean.length,
-      status: 'pendiente', created_at: new Date().toISOString(), paid_at: null, tickets: clean,
+      status: 'pendiente', created_at: new Date().toISOString(), paid_at: null, terms_accepted_at: new Date().toISOString(), tickets: clean,
     });
     save(s);
     return { code, event_title: ev.title, tier_name: tier.name, quantity: clean.length, unit_price: tier.price, total: tier.price * clean.length };
   }
   const c = await client();
   const people = attendees.map((a) => ({ first_name: a.first_name, last_name: a.last_name }));
-  return unwrap(await c.rpc('create_order', { p_tier_id: tierId, p_attendees: people }));
+  const res = await c.rpc('create_order', { p_tier_id: tierId, p_attendees: people, p_accepted: accepted });
+  // Compatibilidad: si la base todavía tiene la función anterior (sin p_accepted), se usa esa.
+  if (res.error && (res.error.code === 'PGRST202' || /could not find the function/i.test(res.error.message || ''))) {
+    return unwrap(await c.rpc('create_order', { p_tier_id: tierId, p_attendees: people }));
+  }
+  return unwrap(res);
 }
 
 // ───────────────────────── ADMIN ─────────────────────────

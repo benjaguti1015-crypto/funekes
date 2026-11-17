@@ -341,9 +341,9 @@ function step2() {
           <legend>Entrada ${i + 1} · ${esc(t.name)}</legend>
           <div class="att__grid">
             <label class="field"><span>Nombre</span>
-              <input class="input" name="first_name" data-i="${i}" autocomplete="${i ? 'off' : 'given-name'}" value="${esc(a.first_name)}" required /></label>
+              <input class="input" name="first_name" data-i="${i}" maxlength="60" autocomplete="${i ? 'off' : 'given-name'}" value="${esc(a.first_name)}" required /></label>
             <label class="field"><span>Apellido</span>
-              <input class="input" name="last_name" data-i="${i}" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
+              <input class="input" name="last_name" data-i="${i}" maxlength="60" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
           </div>
         </fieldset>`).join('')}
       <p class="att-legal">Tu nombre y apellido se usan solo para saber quién compró la entrada.</p>
@@ -413,7 +413,7 @@ async function submit() {
   btn.disabled = true;
   btn.innerHTML = `<span class="spin"></span> Creando orden…`;
   try {
-    state.order = await createOrder(state.tierId, state.attendees.map((a) => ({ ...a })));
+    state.order = await createOrder(state.tierId, state.attendees.map((a) => ({ ...a })), accept.checked);
     state.step = 3;
     renderStep(1);
     syncEvent(); // esta compra pudo agotar el tramo
