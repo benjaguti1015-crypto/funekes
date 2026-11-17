@@ -33,7 +33,8 @@ Los datos se guardan solo en tu navegador.
 5. Crea la cuenta del guardia igual: **Add user** con su correo y contraseña, y después corre:
    ```sql
    insert into public.guards (user_id)
-   select id from auth.users where email = 'CORREO_DEL_GUARDIA';
+   select id from auth.users where email = 'CORREO_DEL_GUARDIA'
+   on conflict do nothing;
    ```
    Esa cuenta entra a `/puerta.html` y solo puede escanear: no ve ventas, precios ni la lista de compradores.
 6. En Vercel: **Add New → Project**, importa el repo y en **Framework Preset** elige **Other**.

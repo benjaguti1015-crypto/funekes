@@ -126,7 +126,7 @@ function drawTicket(doc, { order, event, ticket, index, total, logoImg }) {
   doc.setLineDashPattern([0.8, 0.8], 0);
   doc.line(8, 167.5, W - 8, 167.5);
   doc.setLineDashPattern([], 0);
-  text('Válida para 1 ingreso. Muestra este QR en la puerta y no lo compartas.', 171.5, { size: 5.8, color: [150, 145, 139] });
+  text('Válida para 1 ingreso. Solo mayores de 18: lleva tu cédula. No compartas este QR.', 171.5, { size: 5.8, color: [150, 145, 139] });
   text('Sin devolución. Traspaso solo por WhatsApp con Funekes.', 174.5, { size: 5.8, color: [150, 145, 139] });
 }
 

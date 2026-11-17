@@ -105,7 +105,7 @@ function renderEvent(ev) {
         ${icon('ne', 'arrow arrow--ne')}
       </button>
       <p class="event__note">${note}</p>
-      <p class="event__legal">Entradas sin devolución, con traspaso por WhatsApp. <a href="terminos.html">Términos</a> · <a href="privacidad.html">Privacidad</a></p>
+      <p class="event__legal">Solo mayores de 18 años. Entradas sin devolución, con traspaso por WhatsApp. <a href="terminos.html">Términos</a> · <a href="privacidad.html">Privacidad</a></p>
     </div>`;
 
   // selección de tramo (radios accesibles con flechas)
@@ -344,7 +344,7 @@ function step2() {
               <input class="input" name="last_name" data-i="${i}" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
           </div>
         </fieldset>`).join('')}
-      <p class="att-legal">Tu nombre y apellido se usan solo para saber quién compró la entrada. Al confirmar aceptas los
+      <p class="att-legal">Tu nombre y apellido se usan solo para saber quién compró la entrada. Al confirmar declaras que eres mayor de 18 años y aceptas los
         <a href="terminos.html" target="_blank" rel="noopener">Términos y condiciones</a> (entrada sin devolución, con traspaso por WhatsApp) y la
         <a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>.</p>
       <div data-form-error></div>
