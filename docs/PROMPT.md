@@ -69,3 +69,12 @@ agregar dependencias npm.
 ```
 
 🎯 Target: Claude Code · 💡 Bloquea la captura como referencia visual, fija el precio en el servidor y define un "listo cuando" verificable para evitar iteraciones.
+
+## Cambios posteriores
+
+- Venta escalonada con cupo oculto al público; preventas de 1 entrada por persona; "Puerta" solo efectivo (no se vende en la web).
+- Solo nombre y apellido por entrada.
+- Cada entrada tiene un código QR único. El admin lo ve en la orden pagada y descarga un PDF con logo, nombre y QR.
+- `puerta.html`: escáner con cuenta de guardia (solo valida entradas, un ingreso por QR).
+- Traspaso de entradas desde el admin (QR nuevo, el anterior se anula).
+- `terminos.html` (sin devolución, traspaso por WhatsApp) y `privacidad.html`.

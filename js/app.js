@@ -27,12 +27,14 @@ function titleHTML(title) {
  * Los anteriores quedan "agotada" y los siguientes "pronto". Nunca se muestra el cupo.
  */
 function tierState(ev, t) {
+  if (t.door_only) return t.is_active ? 'puerta' : 'agotada'; // solo en la entrada, en efectivo
   if (!t.is_active || t.sold_out) return 'agotada';
-  return ev.tiers.find((x) => x.is_active && !x.sold_out) === t ? 'venta' : 'pronto';
+  return ev.tiers.find((x) => x.is_active && !x.sold_out && !x.door_only) === t ? 'venta' : 'pronto';
 }
 const onSale = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'venta');
-const STATE_TAG = { venta: '', agotada: ' · agotada', pronto: ' · pronto' };
-const STATE_LABEL = { venta: 'Disponible', agotada: 'Agotada', pronto: 'Próximamente' };
+const doorTier = (ev) => ev.tiers.find((t) => tierState(ev, t) === 'puerta');
+const STATE_TAG = { venta: '', agotada: ' · agotada', pronto: ' · pronto', puerta: ' · efectivo' };
+const STATE_LABEL = { venta: 'Disponible', agotada: 'Agotada', pronto: 'Próximamente', puerta: 'Solo en la entrada del evento, en efectivo' };
 
 // ───────────────────────── RENDER LANDING ─────────────────────────
 
@@ -67,7 +69,13 @@ function renderEvent(ev) {
     return;
   }
   const first = onSale(ev);
+  const door = doorTier(ev);
   state.tierId = first?.id ?? null;
+  const note = first
+    ? `Pago por transferencia: te enviamos los datos por WhatsApp. Cuando validamos el pago te mandamos tu entrada con código QR.${door ? ` En puerta: ${money(door.price)}, solo efectivo.` : ''}`
+    : door
+      ? `Las preventas se agotaron. Quedan entradas en la puerta del evento a ${money(door.price)}, solo en efectivo.`
+      : 'Ya no quedan entradas para esta fecha.';
 
   box.innerHTML = `
     <div class="event__media">
@@ -93,10 +101,11 @@ function renderEvent(ev) {
           </button>`; }).join('')}
       </div>
       <button class="btn btn--primary event__buy" data-buy ${first ? '' : 'disabled'}>
-        <span>${icon('ticket')}${first ? 'Comprar entrada' : 'Entradas agotadas'}</span>
+        <span>${icon('ticket')}${first ? 'Comprar entrada' : door ? 'Preventas agotadas' : 'Entradas agotadas'}</span>
         ${icon('ne', 'arrow arrow--ne')}
       </button>
-      <p class="event__note">Pago por transferencia: te enviamos los datos por WhatsApp. Tu entrada queda confirmada cuando validamos el pago.</p>
+      <p class="event__note">${note}</p>
+      <p class="event__legal">Entradas sin devolución, con traspaso por WhatsApp. <a href="terminos.html">Términos</a> · <a href="privacidad.html">Privacidad</a></p>
     </div>`;
 
   // selección de tramo (radios accesibles con flechas)
@@ -335,6 +344,9 @@ function step2() {
               <input class="input" name="last_name" data-i="${i}" autocomplete="${i ? 'off' : 'family-name'}" value="${esc(a.last_name)}" required /></label>
           </div>
         </fieldset>`).join('')}
+      <p class="att-legal">Tu nombre y apellido se usan solo para saber quién compró la entrada. Al confirmar aceptas los
+        <a href="terminos.html" target="_blank" rel="noopener">Términos y condiciones</a> (entrada sin devolución, con traspaso por WhatsApp) y la
+        <a href="privacidad.html" target="_blank" rel="noopener">Política de privacidad</a>.</p>
       <div data-form-error></div>
       <button type="submit" hidden></button>
     </form>`;
@@ -434,7 +446,7 @@ function step3() {
       <ol class="howto">
         <li><span>Escríbenos por <b>WhatsApp</b> con tu código. El mensaje ya va listo.</span></li>
         <li><span>Te enviamos los <b>datos de transferencia</b>. Transfiere <b>${money(o.total)}</b> y manda el comprobante por el mismo chat.</span></li>
-        <li><span>Cuando validemos el pago, tu orden pasa a <b>pagada</b> y quedas en la lista.</span></li>
+        <li><span>Cuando validemos el pago te mandamos por WhatsApp tu <b>entrada en PDF con código QR</b>. Ese QR es el que se escanea en la puerta.</span></li>
       </ol>
     </div>`;
   foot.innerHTML = waUrl
@@ -479,7 +491,7 @@ function observeReveals() {
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-buy]')) {
     e.preventDefault();
-    if (state.event) openSheet();
+    if (state.event && onSale(state.event)) openSheet();
     else document.getElementById('evento').scrollIntoView();
   }
   if (e.target.closest('[data-close]')) closeSheet();

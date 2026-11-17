@@ -107,10 +107,33 @@ body { background: var(--bg); font-size: 14px; }
 .detail { grid-column: 1 / -1; display: grid; grid-template-rows: 0fr; transition: grid-template-rows 240ms var(--ease-out); }
 .detail > div { overflow: hidden; }
 .detail[data-open='true'] { grid-template-rows: 1fr; }
-.att-list { margin: 0 0 14px; padding: 12px 14px; list-style: none; display: grid; gap: 6px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); counter-reset: a; }
-.att-list li { counter-increment: a; display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; font-size: 13px; }
-.att-list li::before { content: counter(a, decimal-leading-zero); font-family: var(--mono); font-size: 11px; color: var(--dim); padding-top: 1px; }
-.att-list span:last-child { color: var(--muted); overflow-wrap: anywhere; }
+.detail > div { cursor: default; }
+.tk-list { margin: 0 0 14px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.tk { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); }
+.tk__qr { width: 96px; height: 96px; border-radius: 4px; overflow: hidden; background: #fff; }
+.tk__qr svg { display: block; width: 100%; height: 100%; }
+.tk__qr--off { display: grid; place-items: center; padding: 8px; text-align: center; background: var(--surface-2); border: 1px dashed var(--line-2); color: var(--dim); font-size: 11px; line-height: 1.3; }
+.tk__info { display: grid; gap: 4px; min-width: 0; }
+.tk__info b { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.tk__info code { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.06em; color: var(--muted); user-select: all; }
+.tk__info small { font-size: 12px; color: var(--dim); }
+.tk__info small.tk__in { color: var(--ok); }
+.tk__acts { display: flex; gap: 6px; }
+.tk--edit { display: block; }
+.tk__form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.tk__formh, .tk__formb, .tk__form .hint { grid-column: 1 / -1; }
+.tk__formh { font-size: 13px; color: var(--muted); }
+.tk__formh b { color: var(--text); }
+.tk__formb { display: flex; gap: 8px; }
+.tk__form .input { height: 40px; font-size: 15px; }
+.tk__form .hint { font-size: 12px; }
+@media (max-width: 560px) {
+  .tk { grid-template-columns: 76px minmax(0, 1fr); }
+  .tk__qr { width: 76px; height: 76px; }
+  .tk__acts { grid-column: 1 / -1; }
+  .tk__acts .btn { flex: 1; }
+  .tk__form { grid-template-columns: 1fr; }
+}
 .att-meta { display: flex; gap: 18px; flex-wrap: wrap; margin: 0 0 14px; font-size: 12px; color: var(--dim); }
 
 .empty-row { padding: 48px 20px; text-align: center; color: var(--muted); }
@@ -138,8 +161,6 @@ body { background: var(--bg); font-size: 14px; }
   .tr > :nth-child(8) { grid-area: acts; }
   .acts { justify-content: stretch; }
   .acts .btn { flex: 1; }
-  .att-list li { grid-template-columns: 22px 1fr; }
-  .att-list li span:last-child { grid-column: 2; }
 }
 
 /* ───────── EVENTOS ───────── */
@@ -189,10 +210,11 @@ body { background: var(--bg); font-size: 14px; }
 .switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .tier-rows { display: grid; gap: 8px; }
-.tier-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.9fr) auto 34px; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.tier-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.6fr) minmax(0, 0.85fr) auto auto 34px; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
 .tier-row .field > span { font-size: 11.5px; }
 .tier-row .input { height: 40px; font-size: 15px; }
 .tier-row .switch { height: 40px; }
+.tier-row .sw > span { white-space: nowrap; }
 .money-in { position: relative; }
 .money-in::before { content: '$'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--dim); }
 .money-in .input { padding-left: 24px; font-variant-numeric: tabular-nums; }

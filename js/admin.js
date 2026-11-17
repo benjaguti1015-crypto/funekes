@@ -1,7 +1,9 @@
 import {
   DEMO, getEvents, getSettings, getAdminSession, signIn, signOut,
   listOrders, setOrderStatus, saveEvent, saveSettings, uploadImage, resetDemo,
+  transferTicket, undoCheckIn,
 } from './data.js';
+import { loadQR, qrSVG, downloadTicketsPDF } from './ticket.js';
 import { money, longDate, dateTime, esc, isPast, toLocalInput, fromLocalInput, slugify, toast } from './util.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -15,6 +17,8 @@ const st = {
   filter: 'pendiente',
   q: '',
   open: new Set(),
+  transfer: null, // id de la entrada que se está traspasando
+  qr: false,      // generador de QR cargado
 };
 
 // ───────────────────────── AUTH ─────────────────────────
@@ -68,7 +72,7 @@ async function startApp(session) {
     $('.main').prepend(n);
     $('[data-reset-demo]', n).addEventListener('click', () => { resetDemo(); location.reload(); });
   }
-  await Promise.all([loadEvents(), loadOrders()]);
+  await Promise.all([loadEvents(), loadOrders(), loadQR().then(() => (st.qr = true)).catch(() => {})]);
   const upcoming = st.events.find((e) => !isPast(e));
   st.eventId = (upcoming || st.events.at(-1))?.id ?? null;
   renderEventSelect();
@@ -99,7 +103,7 @@ function renderEventSelect() {
     .map((e) => `<option value="${e.id}" ${e.id === st.eventId ? 'selected' : ''}>${esc(e.title)} · ${esc(longDate(e.starts_at))}</option>`)
     .join('');
 }
-$('[data-ev-select]').addEventListener('change', (e) => { st.eventId = e.target.value; st.open.clear(); renderOrders(); });
+$('[data-ev-select]').addEventListener('change', (e) => { st.eventId = e.target.value; st.open.clear(); st.transfer = null; renderOrders(); });
 $('[data-reload]').addEventListener('click', async (e) => {
   const b = e.currentTarget;
   b.disabled = true;
@@ -133,8 +137,9 @@ function renderOrders() {
   const ev = st.events.find((e) => e.id === st.eventId);
   $('[data-tierbar]').innerHTML = (ev?.tiers || []).map((t) => {
     const n = live.filter((o) => o.tier_id === t.id).reduce((a, o) => a + o.quantity, 0);
+    if (t.door_only) return `<span>${esc(t.name)} · <b>solo en puerta</b></span>`;
     return `<span>${esc(t.name)} · <b>${n}${t.capacity ? ` / ${t.capacity}` : ''}</b></span>`;
-  }).join('');
+  }).join('') + `<span>Ingresaron · <b>${paid.flatMap((o) => o.tickets || []).filter((t) => t.checked_in_at).length} / ${sum(paid, 'quantity')}</b></span>`;
 
   const counts = { pendiente: pend.length, pagado: paid.length, cancelado: os.length - live.length, all: os.length };
   $$('[data-c]').forEach((i) => (i.textContent = counts[i.dataset.c]));
@@ -156,8 +161,44 @@ function actionsHTML(o) {
   if (o.status === 'pendiente') return `
     <button class="btn btn--ok btn--sm" data-act="pagado">${icon('check')}Marcar pagado</button>
     <button class="iconbtn" data-act="cancelado" aria-label="Cancelar orden" title="Cancelar orden">${icon('x')}</button>`;
-  if (o.status === 'pagado') return `<button class="btn btn--quiet btn--sm" data-act="pendiente">${icon('undo')}Volver a pendiente</button>`;
+  if (o.status === 'pagado') return `
+    <button class="btn btn--quiet btn--sm" data-pdf>${icon('dl')}Entrada PDF</button>
+    <button class="iconbtn" data-act="pendiente" aria-label="Volver a pendiente" title="Volver a pendiente">${icon('undo')}</button>`;
   return `<button class="btn btn--quiet btn--sm" data-act="pendiente">${icon('undo')}Reactivar</button>`;
+}
+
+function ticketHTML(o, t, open) {
+  const paid = o.status === 'pagado';
+  if (st.transfer === t.id) return `
+    <li class="tk tk--edit" data-ticket="${t.id}">
+      <form class="tk__form" data-transfer-form novalidate>
+        <p class="tk__formh">Traspasar la entrada de <b>${esc(t.first_name)} ${esc(t.last_name)}</b></p>
+        <label class="field"><span>Nombre de quien la recibe</span><input class="input" name="first_name" autocomplete="off" required /></label>
+        <label class="field"><span>Apellido</span><input class="input" name="last_name" autocomplete="off" required /></label>
+        <div class="tk__formb">
+          <button class="btn btn--primary btn--sm" type="submit">Traspasar</button>
+          <button class="btn btn--quiet btn--sm" type="button" data-transfer-cancel>Cancelar</button>
+        </div>
+        <p class="hint">Se genera un QR nuevo y el anterior deja de servir. Después descarga el PDF otra vez y mándaselo a la persona nueva.</p>
+      </form>
+    </li>`;
+  const status = t.checked_in_at ? `Ingresó · ${esc(dateTime(t.checked_in_at))}` : paid ? 'Aún no ingresa' : 'QR inactivo hasta marcar la orden como pagada';
+  return `
+    <li class="tk" data-ticket="${t.id}">
+      ${paid && st.qr
+        ? `<span class="tk__qr" data-qr="${esc(t.qr_code)}">${open ? qrSVG(t.qr_code) : ''}</span>`
+        : `<span class="tk__qr tk__qr--off">${paid ? 'QR' : 'QR al pagar'}</span>`}
+      <span class="tk__info">
+        <b>${esc(t.first_name)} ${esc(t.last_name)}</b>
+        <code>${esc(t.qr_code || '')}</code>
+        <small class="${t.checked_in_at ? 'tk__in' : ''}">${status}</small>
+      </span>
+      <span class="tk__acts">
+        ${t.checked_in_at
+          ? `<button class="btn btn--quiet btn--sm" data-undo-in>${icon('undo')}Deshacer ingreso</button>`
+          : o.status !== 'cancelado' ? `<button class="btn btn--quiet btn--sm" data-transfer>Traspasar</button>` : ''}
+      </span>
+    </li>`;
 }
 
 function rowHTML(o) {
@@ -174,8 +215,8 @@ function rowHTML(o) {
       <span class="acts" role="cell">${actionsHTML(o)}</span>
       <div class="detail" data-open="${open}">
         <div>
-          <ul class="att-list">
-            ${(o.tickets || []).map((t) => `<li><span>${esc(t.first_name)} ${esc(t.last_name)}</span></li>`).join('')}
+          <ul class="tk-list">
+            ${(o.tickets || []).map((t) => ticketHTML(o, t, open)).join('')}
           </ul>
           <p class="att-meta">
             <span>Precio unitario: ${money(o.unit_price)}</span>
@@ -206,10 +247,51 @@ function renderTable() {
 $('[data-orders]').addEventListener('click', async (e) => {
   const row = e.target.closest('.row');
   if (!row) return;
-  const act = e.target.closest('[data-act]');
-  if (!act) return toggleRow(row);
-
   const o = st.orders.find((x) => x.id === row.dataset.id);
+  const btn = e.target.closest('button');
+  const li = e.target.closest('[data-ticket]');
+
+  if (btn?.matches('[data-pdf]')) {
+    btn.disabled = true;
+    try {
+      await downloadTicketsPDF(o, st.events.find((x) => x.id === o.event_id));
+      toast('PDF descargado');
+    } catch (ex) {
+      toast(ex.message || 'No se pudo crear el PDF', 'error');
+    }
+    btn.disabled = false;
+    return;
+  }
+  if (btn?.matches('[data-transfer]')) {
+    st.transfer = li.dataset.ticket;
+    st.open.add(o.id);
+    renderTable();
+    $('[data-transfer-form] input')?.focus();
+    return;
+  }
+  if (btn?.matches('[data-transfer-cancel]')) { st.transfer = null; renderTable(); return; }
+  if (btn?.matches('[data-undo-in]')) {
+    const t = o.tickets.find((x) => x.id === li.dataset.ticket);
+    if (!confirm(`¿Deshacer el ingreso de ${t.first_name} ${t.last_name}? Su QR volverá a servir para entrar.`)) return;
+    btn.disabled = true;
+    try {
+      await undoCheckIn(t.id);
+      t.checked_in_at = null;
+      renderOrders();
+      toast('Ingreso deshecho');
+    } catch (ex) {
+      btn.disabled = false;
+      toast(ex.message, 'error');
+    }
+    return;
+  }
+
+  const act = e.target.closest('[data-act]');
+  if (!act) {
+    // dentro del detalle (QR, nombres, formulario) no se pliega la fila
+    if (!e.target.closest('.detail')) toggleRow(row);
+    return;
+  }
   const next = act.dataset.act;
   if (next === 'cancelado' && !confirm(`¿Cancelar la orden ${o.code}? Las entradas vuelven a quedar disponibles.`)) return;
   const prev = o.status;
@@ -228,6 +310,32 @@ $('[data-orders]').addEventListener('click', async (e) => {
     toast(ex.message, 'error');
   }
 });
+// traspaso de una entrada
+$('[data-orders]').addEventListener('submit', async (e) => {
+  const form = e.target.closest('[data-transfer-form]');
+  if (!form) return;
+  e.preventDefault();
+  const row = form.closest('.row');
+  const o = st.orders.find((x) => x.id === row.dataset.id);
+  const t = o.tickets.find((x) => x.id === form.closest('[data-ticket]').dataset.ticket);
+  const first = form.first_name.value.trim();
+  const last = form.last_name.value.trim();
+  form.first_name.setAttribute('aria-invalid', String(!first));
+  form.last_name.setAttribute('aria-invalid', String(!last));
+  if (!first || !last) return (first ? form.last_name : form.first_name).focus();
+  const btn = $('button[type=submit]', form);
+  btn.disabled = true;
+  try {
+    Object.assign(t, await transferTicket(t.id, first, last));
+    if (o.quantity === 1) o.buyer_name = `${t.first_name} ${t.last_name}`;
+    st.transfer = null;
+    renderTable();
+    toast('Entrada traspasada. Descarga el PDF nuevo.');
+  } catch (ex) {
+    btn.disabled = false;
+    toast(ex.message, 'error');
+  }
+});
 $('[data-orders]').addEventListener('keydown', (e) => {
   const row = e.target.closest('.row');
   if (row && e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleRow(row); }
@@ -238,6 +346,8 @@ function toggleRow(row) {
   open ? st.open.add(id) : st.open.delete(id);
   row.setAttribute('aria-expanded', open);
   $('.detail', row).dataset.open = open;
+  // los QR se dibujan recién al abrir la fila
+  if (open) $$('[data-qr]', row).forEach((el) => { if (!el.firstChild) el.innerHTML = qrSVG(el.dataset.qr); });
 }
 
 // ───────────────────────── EVENTOS ─────────────────────────
@@ -260,7 +370,7 @@ function renderEventsList() {
             <span>
               <span class="ev__t">${esc(e.title)}</span>
               <span class="ev__m" style="display:block">${esc(longDate(e.starts_at))} · ${esc(e.venue || e.location)}</span>
-              <span class="ev__tiers">${e.tiers.map((t) => `<span class="${t.is_active ? '' : 'off'}">${esc(t.name)} ${money(t.price)}</span>`).join('') || '<span>Sin tramos</span>'}</span>
+              <span class="ev__tiers">${e.tiers.map((t) => `<span class="${t.is_active ? '' : 'off'}">${esc(t.name)} ${money(t.price)}${t.door_only ? ' · puerta' : ''}</span>`).join('') || '<span>Sin tramos</span>'}</span>
             </span>
             <span class="ev__r">
               ${!e.is_published ? '<span class="chip">Oculto</span>' : past ? '<span class="chip">Archivo</span>' : '<span class="chip chip--live">En venta</span>'}
@@ -285,7 +395,7 @@ function openEditor(id) {
     tiers: ev ? ev.tiers.map((t) => ({ ...t })) : [
       { name: 'Preventa 1', price: 4000, capacity: 10, max_per_order: 1, is_active: true },
       { name: 'Preventa 2', price: 5000, capacity: 100, max_per_order: 1, is_active: true },
-      { name: 'Puerta', price: 6000, capacity: null, max_per_order: null, is_active: true },
+      { name: 'Puerta', price: 6000, capacity: null, max_per_order: null, door_only: true, is_active: true },
     ],
     removed: [],
   };
@@ -341,7 +451,7 @@ function renderEditor() {
       </section>
 
       <section class="block">
-        <div class="block__h"><div><h2>Entradas y precios</h2><p>Se venden en orden: al agotarse el cupo de un tramo se abre el siguiente. El cupo no se muestra al público. Máx. por compra en 1 = una entrada por persona. Desactiva un tramo para cerrarlo a mano.</p></div>
+        <div class="block__h"><div><h2>Entradas y precios</h2><p>Se venden en orden: al agotarse el cupo de un tramo se abre el siguiente. El cupo no se muestra al público. Máx. por compra en 1 = una entrada por persona. "Solo puerta" = se muestra el precio pero no se vende en la web (efectivo en la entrada). Desactiva un tramo para cerrarlo a mano.</p></div>
           <button type="button" class="btn btn--quiet btn--sm" data-add-tier>${icon('plus')}Agregar tramo</button>
         </div>
         <div class="tier-rows">
@@ -351,7 +461,8 @@ function renderEditor() {
               <label class="field"><span>Precio (CLP)</span><span class="money-in"><input class="input" data-tf="price" inputmode="numeric" value="${t.price ?? ''}" /></span></label>
               <label class="field"><span>Cupo</span><input class="input" data-tf="capacity" inputmode="numeric" placeholder="∞" value="${t.capacity ?? ''}" /></label>
               <label class="field"><span>Máx. por compra</span><input class="input" data-tf="max_per_order" inputmode="numeric" placeholder="10" value="${t.max_per_order ?? ''}" /></label>
-              <label class="switch" title="Tramo activo"><input type="checkbox" data-tf="is_active" ${t.is_active ? 'checked' : ''} /><i></i></label>
+              <div class="field sw"><span>Solo puerta</span><label class="switch" title="Se vende solo en la entrada, en efectivo. No se puede comprar en la web."><input type="checkbox" data-tf="door_only" ${t.door_only ? 'checked' : ''} /><i></i></label></div>
+              <div class="field sw"><span>Activo</span><label class="switch" title="Tramo activo"><input type="checkbox" data-tf="is_active" ${t.is_active ? 'checked' : ''} /><i></i></label></div>
               <button type="button" class="iconbtn" data-del-tier="${i}" aria-label="Eliminar tramo">${icon('trash')}</button>
             </div>`).join('')}
         </div>
@@ -399,6 +510,7 @@ function readForm(form) {
     const mx = parseInt($('[data-tf=max_per_order]', row).value.replace(/\D/g, ''), 10);
     t.max_per_order = Number.isFinite(mx) && mx >= 1 && mx < 10 ? mx : null;
     t.is_active = $('[data-tf=is_active]', row).checked;
+    t.door_only = $('[data-tf=door_only]', row).checked;
   });
 }
 

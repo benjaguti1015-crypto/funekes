@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Puerta · FUNEKES</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#0e0e0f" />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <link rel="stylesheet" href="css/door.css" />
+</head>
+<body class="door-body">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-crown" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></g></symbol>
+  </svg>
+
+  <!-- LOGIN -->
+  <main class="login" data-login hidden>
+    <form class="login__card" data-login-form novalidate>
+      <span class="logo"><svg><use href="#i-crown"/></svg><b>FUNEKES</b></span>
+      <h1 class="login__title">Control de puerta</h1>
+      <p class="login__sub" data-login-hint>Entra con tu cuenta de guardia.</p>
+      <label class="field"><span>Correo</span>
+        <input class="input" type="email" name="email" autocomplete="username" required /></label>
+      <label class="field"><span>Contraseña</span>
+        <input class="input" type="password" name="password" autocomplete="current-password" required /></label>
+      <p class="form-error" data-login-error hidden role="alert"></p>
+      <button class="btn btn--primary btn--block" type="submit">Entrar</button>
+    </form>
+  </main>
+
+  <!-- ESCÁNER -->
+  <div class="door" data-app hidden>
+    <header class="door__top">
+      <span class="logo"><svg><use href="#i-crown"/></svg><b>FUNEKES</b></span>
+      <span class="tag">Puerta</span>
+      <button class="iconbtn door__out" data-logout aria-label="Cerrar sesión"><svg><use href="#i-out"/></svg></button>
+    </header>
+
+    <div class="door__bar">
+      <div class="door__event">
+        <small>Evento</small>
+        <select class="door__select" data-event aria-label="Evento"></select>
+      </div>
+      <div class="door__count"><small>Ingresaron</small><b data-count>–</b></div>
+    </div>
+
+    <div class="cam" data-cam data-state="idle">
+      <video data-video muted playsinline></video>
+      <div class="cam__frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="cam__msg" data-cam-msg>
+        <p data-cam-text>Activa la cámara para empezar a escanear.</p>
+        <button class="btn btn--primary" data-cam-start><svg><use href="#i-cam"/></svg>Activar cámara</button>
+      </div>
+      <button class="iconbtn cam__flash" data-flash hidden aria-label="Linterna" aria-pressed="false"><svg><use href="#i-bolt"/></svg></button>
+    </div>
+    <p class="door__hint" data-hint>Apunta al código QR de la entrada.</p>
+
+    <form class="manual" data-manual novalidate>
+      <label class="field">
+        <span>¿No lee el QR? Escribe el código que sale debajo</span>
+        <input class="input manual__in" name="code" placeholder="K7QM-2XPA-9HTD" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="20" />
+      </label>
+      <button class="btn btn--quiet" type="submit">Validar</button>
+    </form>
+  </div>
+
+  <!-- RESULTADO -->
+  <div class="res" data-res hidden role="alertdialog" aria-modal="true" aria-labelledby="res-title">
+    <div class="res__in">
+      <span class="res__icon" data-res-icon></span>
+      <h2 class="res__title" id="res-title" data-res-title></h2>
+      <p class="res__name" data-res-name></p>
+      <p class="res__sub" data-res-sub></p>
+    </div>
+    <button class="res__next" data-res-next>Siguiente</button>
+  </div>
+
+  <script type="module" src="js/door.js"></script>
+</body>
+</html>
